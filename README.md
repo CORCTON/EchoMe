@@ -1,3 +1,4 @@
+<img width="9050" height="2849" alt="EchoMe" src="https://github.com/user-attachments/assets/b92c1c49-339b-43b5-8161-08d7b740ff54" />
 # EchoMe
 EchoMe - Voice Agent
 
