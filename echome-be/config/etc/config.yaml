@@ -1,0 +1,26 @@
+server:
+  port: "8081"
+ai:
+  service_type: "alibailian"
+  timeout: 30
+  max_retries: 3
+aliyun:
+  api_key: "sk-64d642d1fbfc448f94560df95bc34d96"
+  endpoint: "https://dashscope.aliyuncs.com"
+  region: "cn-beijing"
+  asr:
+    model: "paraformer-realtime-v2"
+    sample_rate: 16000
+    format: "pcm"
+    language_hints: ["zh-CN", "en-US"]
+  tts:
+    model: "qwen-tts-realtime"
+    default_voice: "Cherry"
+    sample_rate: 24000
+    response_format: "pcm"
+  llm:
+    model: "qwen-plus"
+    temperature: 0.7
+    max_tokens: 2000
+webrtc:
+  stun_server: "stun:stun.example.com:19302"
