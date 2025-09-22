@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'echome-be/**'
+  workflow_dispatch:
 
 jobs:
   deploy:
