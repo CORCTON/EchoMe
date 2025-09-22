@@ -10,17 +10,23 @@
     "format": "biome format --write"
   },
   "dependencies": {
+    "@heroui/react": "^2.8.4",
+    "@slr/vad-react": "^0.0.26",
+    "framer-motion": "^12.23.18",
+    "next": "15.5.3",
+    "next-intl": "^4.3.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.3"
+    "tailwindcss-animate": "^1.0.7",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@biomejs/biome": "2.2.0",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
     "tailwindcss": "^4",
-    "@biomejs/biome": "2.2.0"
+    "typescript": "^5"
   }
 }
