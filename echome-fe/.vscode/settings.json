@@ -1,0 +1,12 @@
+{
+  "i18n-ally.sourceLanguage": "zh",
+  "i18n-ally.displayLanguage": "zh",
+  "i18n-ally.localesPaths": ["src/messages"],
+  "i18n-ally.namespace": true,
+  "i18n-ally.pathMatcher": "{locale}/{namespaces}.json",
+  "i18n-ally.keystyle": "nested",
+  "i18n-ally.enabledFrameworks": ["next-intl"],
+  "i18n-ally.translate.deepl.apiKey": "26b9c5ec-b8f9-4a2a-9c06-71828bf978ce:fx",
+  "editor.defaultFormatter": "biomejs.biome",
+  "markdown.validate.enabled": true
+}
