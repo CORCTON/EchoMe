@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   echome-be:
     image: ghcr.io/corcton/echome-be:latest
