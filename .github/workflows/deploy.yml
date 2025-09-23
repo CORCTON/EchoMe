@@ -112,21 +112,11 @@ jobs:
       - name: Prepare SSH password auth
         run: |
           sudo apt-get update -y && sudo apt-get install -y sshpass
-      - name: Checkout repository (for scripts)
-        uses: actions/checkout@v4
       - name: Compute lowercase owner
         id: meta
         run: |
           owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
           echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
-      - name: Upload install script to server
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ env.SERVER_HOST }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-        run: |
-          if [ ! -f deploy/install_docker_cn.sh ]; then echo "deploy/install_docker_cn.sh not found"; exit 1; fi
-          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no deploy/install_docker_cn.sh $SERVER_USER@$SERVER_HOST:/tmp/install_docker.sh
       - name: Deploy via SSH
         env:
           SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -142,16 +132,13 @@ jobs:
           fi
           # 始终使用仓库脚本安装（或重新安装）Docker（简化逻辑，不做检测）
           if ! command -v docker >/dev/null 2>&1; then
-            echo "Docker not found. Installing via uploaded script...";
+            echo "Docker not found. Installing via repository script...";
             TMP_SCRIPT=/tmp/install_docker.sh
-            if [ ! -f "$TMP_SCRIPT" ]; then
-              echo "Uploaded install script missing. Attempting fallback download...";
-              (curl -fsSL https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker-china.sh -o $TMP_SCRIPT || \
-               curl -fsSL https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker.sh -o $TMP_SCRIPT) || { echo 'Fallback download failed'; exit 2; }
-            fi
+            (curl -fsSL https://gh-proxy.com/https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker-china.sh -o $TMP_SCRIPT || \
+             curl -fsSL https://gh-proxy.com/https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker.sh -o $TMP_SCRIPT) || { echo 'Download install script failed'; exit 2; }
             chmod +x $TMP_SCRIPT
             sudo bash $TMP_SCRIPT || { echo 'Docker install failed'; exit 3; }
-            echo "Docker installation finished.";
+            echo "Docker installation executed.";
           else
             echo "Docker already installed on remote host, skipping installation.";
           fi
