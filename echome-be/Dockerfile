@@ -4,13 +4,14 @@ FROM golang:1.24.7-alpine AS builder
 WORKDIR /app
 # Install build deps
 RUN apk add --no-cache git build-base bash
-# Pre-copy go.mod and go.sum (if exists) for caching
+# Pre-copy go.mod for better layer caching
 COPY go.mod ./
-COPY go.sum ./
-# Generate go.sum if missing and download modules
-RUN if [ ! -f go.sum ]; then go mod tidy; fi && go mod download
-# Copy source
+# (Optional) create empty go.sum to satisfy cache layer logic
+RUN test -f go.sum || touch go.sum
+# Copy entire source
 COPY . .
+# Ensure dependencies resolved and go.sum generated
+RUN go mod tidy && go mod download
 # Generate swagger docs if swag is present (ignore failure)
 RUN go install github.com/swaggo/swag/cmd/swag@v1.16.6 && \
     if [ -f Makefile ]; then make swag || true; fi
