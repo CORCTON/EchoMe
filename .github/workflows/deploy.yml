@@ -158,6 +158,23 @@ jobs:
           else
             echo "远程主机已安装 Docker，跳过安装步骤。";
           fi
+          # 配置 Docker registry mirror（加速镜像拉取），使用可替换的加速地址
+          MIRROR_URL="https://docker.1panel.live"
+          echo "配置 Docker registry mirror: $MIRROR_URL"
+          if [ -f /etc/docker/daemon.json ]; then
+            sudo jq --arg m "$MIRROR_URL" '. + {"registry-mirrors": [$m]}' /etc/docker/daemon.json > /tmp/daemon.json.tmp || \
+              sudo cp /etc/docker/daemon.json /tmp/daemon.json.tmp
+            sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
+          else
+            echo "{\"registry-mirrors\": [\"$MIRROR_URL\"]}" | sudo tee /etc/docker/daemon.json > /dev/null
+          fi
+          # 尝试重启 Docker 服务以使配置生效（在某些系统上需要 systemctl）
+          if command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl restart docker || true
+          else
+            # 若不是 systemd，尝试使用 service 命令
+            sudo service docker restart || true
+          fi
           # 使用 Traefik 作为反向代理并自动申请 Let's Encrypt 证书
           cat > deploy/docker-compose.yml <<'COMPOSE'
           version: '3.8'
