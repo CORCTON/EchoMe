@@ -207,7 +207,9 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 		"type":         "connection-established",
 		"connectionId": connection.ID,
 	}); err != nil {
-		h.webRTCService.ClosePeerConnection(connection.ID)
+		if closeErr := h.webRTCService.ClosePeerConnection(connection.ID); closeErr != nil {
+			log.Printf("Failed to close WebRTC peer connection: %v", closeErr)
+		}
 		return err
 	}
 
@@ -222,12 +224,16 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 		// Process the signal
 		if err := h.webRTCService.HandleSignal(connection.ID, signal); err != nil {
 			// Send error to client
-			ws.WriteJSON(map[string]string{"error": err.Error()})
+			if err := ws.WriteJSON(map[string]string{"error": err.Error()}); err != nil {
+				log.Printf("Failed to send error to client: %v", err)
+			}
 		}
 	}
 
 	// Clean up connection
-	h.webRTCService.ClosePeerConnection(connection.ID)
+	if err := h.webRTCService.ClosePeerConnection(connection.ID); err != nil {
+		log.Printf("Failed to close WebRTC peer connection: %v", err)
+	}
 
 	return nil
 }
@@ -294,7 +300,7 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 	if err := h.conversationService.StartVoiceConversation(c.Request().Context(), voiceConvReq); err != nil {
 		log.Printf("Voice conversation error: %v", err)
 		// Send error message to client before closing
-		ws.WriteJSON(map[string]string{
+		_ = ws.WriteJSON(map[string]string{
 			"type":    "error",
 			"message": "Failed to start voice conversation: " + err.Error(),
 		})

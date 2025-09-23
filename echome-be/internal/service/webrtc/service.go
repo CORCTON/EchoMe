@@ -58,9 +58,6 @@ func (s *webRTCService) HandleSignal(connectionID string, signal domain.SignalMe
 	if !exists {
 		return errors.New("connection not found")
 	}
-
-	// 这里可以实现信令消息的处理逻辑
-	// 例如转发给目标连接
 	if signal.Target != "" && signal.Target != connectionID {
 		s.mutex.RLock()
 		targetConn, targetExists := s.connections[signal.Target]

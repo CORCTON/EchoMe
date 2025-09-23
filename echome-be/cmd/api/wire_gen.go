@@ -18,6 +18,10 @@ import (
 	"github.com/justin/echome-be/internal/service/webrtc"
 )
 
+import (
+	_ "github.com/justin/echome-be/docs"
+)
+
 // Injectors from wire.go:
 
 // InitializeApplication creates a new Application with all dependencies

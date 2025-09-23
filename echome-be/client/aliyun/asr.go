@@ -3,13 +3,13 @@ package aliyun
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
+	"golang.org/x/sync/errgroup"
 )
 
 // ASRConfig 定义ASR参数配置
@@ -38,20 +38,45 @@ func (client *AliClient) HandleASR(ctx context.Context, clientWS *websocket.Conn
 		SampleRate:    config.SampleRate,
 		LanguageHints: config.LanguageHints,
 	}
-	// 连接到阿里云ASR WebSocket
-	dialer := websocket.Dialer{}
-	headers := http.Header{}
-	headers.Add("Authorization", "Bearer "+client.apiKey)
-	aliWS, _, err := dialer.Dial("wss://dashscope.aliyuncs.com/api-ws/v1/inference", headers)
+
+	aliWS, err := connectToAliyunASR(client.apiKey)
 	if err != nil {
 		return err
 	}
 	defer aliWS.Close()
 
-	// 生成任务ID
-	taskID := uuid.New().String()
+	taskID, err := startASRTTask(aliWS, asrConfig)
+	if err != nil {
+		return err
+	}
 
-	// 发送启动任务指令
+	g, ctx := errgroup.WithContext(ctx)
+
+	// 将客户端音频转发到阿里云
+	g.Go(func() error {
+		return forwardAudioToAliyun(ctx, clientWS, aliWS, taskID)
+	})
+
+	// 从阿里云读取结果并处理
+	g.Go(func() error {
+		return handleASRResults(ctx, aliWS, clientWS, client, taskID)
+	})
+
+	return g.Wait()
+}
+
+// connectToAliyunASR 连接到阿里云ASR WebSocket
+func connectToAliyunASR(apiKey string) (*websocket.Conn, error) {
+	dialer := websocket.Dialer{}
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+apiKey)
+	ws, _, err := dialer.Dial("wss://dashscope.aliyuncs.com/api-ws/v1/inference", headers)
+	return ws, err
+}
+
+// startASRTTask 发送启动任务指令并等待确认，返回任务ID
+func startASRTTask(aliWS *websocket.Conn, config ASRConfig) (string, error) {
+	taskID := uuid.New().String()
 	runTask := map[string]interface{}{
 		"header": map[string]interface{}{
 			"action":    "run-task",
@@ -62,56 +87,44 @@ func (client *AliClient) HandleASR(ctx context.Context, clientWS *websocket.Conn
 			"task_group": "audio",
 			"task":       "asr",
 			"function":   "recognition",
-			"model":      asrConfig.Model,
+			"model":      config.Model,
 			"parameters": map[string]interface{}{
-				"format":                     asrConfig.Format,
-				"sample_rate":                asrConfig.SampleRate,
+				"format":                     config.Format,
+				"sample_rate":                config.SampleRate,
 				"disfluency_removal_enabled": false,
-				"language_hints":             asrConfig.LanguageHints,
+				"language_hints":             config.LanguageHints,
 			},
 			"input": map[string]interface{}{},
 		},
 	}
 	if err := aliWS.WriteJSON(runTask); err != nil {
-		return err
+		return "", err
 	}
 
-	// 等待任务启动
 	var started bool
 	for !started {
 		_, msg, err := aliWS.ReadMessage()
 		if err != nil {
-			return err
+			return "", err
 		}
 		var response map[string]interface{}
 		if err := json.Unmarshal(msg, &response); err != nil {
 			continue
 		}
-		header := response["header"].(map[string]interface{})
-		if header["event"] == "task-started" {
+		header, ok := response["header"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if event, ok := header["event"].(string); ok && event == "task-started" {
 			started = true
 		}
 	}
+	return taskID, nil
+}
 
-	// 使用WaitGroup管理协程
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	// 协程：将客户端音频转发到阿里云（二进制）
-	go func() {
-		defer wg.Done()
-		for {
-			mt, data, err := clientWS.ReadMessage()
-			if err != nil {
-				break
-			}
-			if mt == websocket.BinaryMessage {
-				if err := aliWS.WriteMessage(websocket.BinaryMessage, data); err != nil {
-					break
-				}
-			}
-		}
-		// 任务结束时发送finish-task
+// forwardAudioToAliyun 将客户端音频转发到阿里云，并在结束时发送finish-task
+func forwardAudioToAliyun(ctx context.Context, clientWS, aliWS *websocket.Conn, taskID string) error {
+	defer func() {
 		finishTask := map[string]interface{}{
 			"header": map[string]interface{}{
 				"action":    "finish-task",
@@ -122,41 +135,79 @@ func (client *AliClient) HandleASR(ctx context.Context, clientWS *websocket.Conn
 				"input": map[string]interface{}{},
 			},
 		}
-		aliWS.WriteJSON(finishTask)
+		_ = aliWS.WriteJSON(finishTask)
 	}()
 
-	// 协程：从阿里云读取结果并将文本发送给AI服务
-	go func() {
-		defer wg.Done()
-		for {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			mt, data, err := clientWS.ReadMessage()
+			if err != nil {
+				return nil // 客户端断开
+			}
+			if mt == websocket.BinaryMessage {
+				if err := aliWS.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					return fmt.Errorf("转发音频到阿里云失败: %w", err)
+				}
+			}
+		}
+	}
+}
+
+// handleASRResults 从阿里云读取结果，生成AI响应并发送给客户端
+func handleASRResults(ctx context.Context, aliWS, clientWS *websocket.Conn, client *AliClient, taskID string) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
 			_, msg, err := aliWS.ReadMessage()
 			if err != nil {
-				break
+				return nil // 阿里云连接断开
 			}
 			var response map[string]interface{}
 			if err := json.Unmarshal(msg, &response); err != nil {
 				continue
 			}
-			header := response["header"].(map[string]interface{})
-			event := header["event"].(string)
+			header, ok := response["header"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			event, ok := header["event"].(string)
+			if !ok {
+				continue
+			}
 			if event == "result-generated" {
-				payload := response["payload"].(map[string]interface{})
-				output := payload["output"].(map[string]interface{})
-				sentence := output["sentence"].(map[string]interface{})
-				text := sentence["text"].(string)
-				aiResponse, err := client.GenerateResponse(ctx, text, "")
-				if err != nil {
-					log.Printf("AI服务错误: %v", err)
+				payload, ok := response["payload"].(map[string]interface{})
+				if !ok {
 					continue
 				}
-				// 将AI响应发送给客户端
-				clientWS.WriteJSON(map[string]string{"type": "asr_text", "text": aiResponse})
+				output, ok := payload["output"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				sentence, ok := output["sentence"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				text, ok := sentence["text"].(string)
+				if !ok {
+					continue
+				}
+				aiResponse, err := client.GenerateResponse(ctx, text, "")
+				if err != nil {
+					// 记录错误但继续处理
+					fmt.Printf("AI服务错误: %v\n", err)
+					continue
+				}
+				if err := clientWS.WriteJSON(map[string]string{"type": "asr_text", "text": aiResponse}); err != nil {
+					return fmt.Errorf("发送AI响应到客户端失败: %w", err)
+				}
 			} else if event == "task-finished" || event == "task-failed" {
-				break
+				return nil
 			}
 		}
-	}()
-
-	wg.Wait()
-	return nil
+	}
 }

@@ -12,6 +12,7 @@ require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/swaggo/echo-swagger v1.4.1
 	github.com/swaggo/swag v1.16.6
+	golang.org/x/sync v0.16.0
 )
 
 require (
@@ -41,7 +42,6 @@ require (
 	golang.org/x/crypto v0.40.0 // indirect
 	golang.org/x/mod v0.26.0 // indirect
 	golang.org/x/net v0.42.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.11.0 // indirect

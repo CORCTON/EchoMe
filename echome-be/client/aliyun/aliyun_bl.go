@@ -18,21 +18,28 @@ type AliClient struct {
 	endPoint string
 }
 
+// RecognizeAudio implements domain.AIService.
+func (client *AliClient) RecognizeAudio(ctx context.Context, audio []byte, config domain.ASRConfig) (string, error) {
+	panic("unimplemented")
+}
+
+// SynthesizeSpeech implements domain.AIService.
+func (client *AliClient) SynthesizeSpeech(ctx context.Context, text string, config domain.TTSConfig) ([]byte, error) {
+	panic("unimplemented")
+}
+
 // 确保AliClient实现domain.AIService接口
 var _ domain.AIService = (*AliClient)(nil)
 
 func NewAliClient(apiKey string, endpoint string) *AliClient {
-	if endpoint == "" {
-		endpoint = "https://dashscope.aliyuncs.com"
-	}
 	return &AliClient{apiKey: apiKey, endPoint: endpoint}
 }
 
 // BailianRequest 阿里云百炼API请求结构
 type BailianRequest struct {
-	Model      string                 `json:"model"`
-	Input      BailianInput           `json:"input"`
-	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	Model      string         `json:"model"`
+	Input      BailianInput   `json:"input"`
+	Parameters map[string]any `json:"parameters,omitempty"`
 }
 
 // BailianInput 输入结构
