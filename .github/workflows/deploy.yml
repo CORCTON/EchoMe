@@ -108,21 +108,16 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ needs.changes.outputs.be == 'true' || needs.changes.outputs.fe == 'true' || github.event.inputs.force == 'true' }}
     steps:
-      - name: Prepare SSH key
+      - name: Prepare SSH password auth
         run: |
-          echo "${{ secrets.SERVER_SSH_KEY }}" > key.pem
-          chmod 600 key.pem
-      - name: Compute lowercase owner
-        id: meta
-        run: |
-          owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
-          echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
+          sudo apt-get update -y && sudo apt-get install -y sshpass
       - name: Deploy via SSH
         env:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST: ${{ env.SERVER_HOST }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i key.pem $SERVER_USER@$SERVER_HOST <<'EOF'
+          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST <<'EOF'
           set -e
           sudo mkdir -p /opt/echome
           cd /opt/echome
