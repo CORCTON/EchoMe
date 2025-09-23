@@ -317,11 +317,9 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/characters/search": {
-            "get": {
-                "description": "Search for roles by query string",
+            },
+            "post": {
+                "description": "创建一个新角色",
                 "consumes": [
                     "application/json"
                 ],
@@ -331,11 +329,63 @@ const docTemplate = `{
                 "tags": [
                     "characters"
                 ],
-                "summary": "Search roles",
+                "summary": "创建角色",
+                "parameters": [
+                    {
+                        "description": "角色信息",
+                        "name": "character",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.Character"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Character"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/characters/search": {
+            "get": {
+                "description": "根据查询字符串搜索角色",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "characters"
+                ],
+                "summary": "搜索角色",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "搜索查询",
                         "name": "q",
                         "in": "query",
                         "required": true
@@ -365,7 +415,7 @@ const docTemplate = `{
         },
         "/characters/{id}": {
             "get": {
-                "description": "Get detailed information about a specific character",
+                "description": "根据角色ID获取详细信息",
                 "consumes": [
                     "application/json"
                 ],
@@ -375,11 +425,11 @@ const docTemplate = `{
                 "tags": [
                     "characters"
                 ],
-                "summary": "Get character by ID",
+                "summary": "获取角色详情",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Character ID",
+                        "description": "角色ID",
                         "name": "id",
                         "in": "path",
                         "required": true

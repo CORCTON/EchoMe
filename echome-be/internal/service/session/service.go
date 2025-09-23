@@ -9,25 +9,25 @@ import (
 )
 
 // sessionService implements domain.SessionService
- type sessionService struct {
-	sessionRepo domain.SessionRepository
-	messageRepo domain.MessageRepository
-	aiService domain.AIService
+type sessionService struct {
+	sessionRepo      domain.SessionRepository
+	messageRepo      domain.MessageRepository
+	aiService        domain.AIService
 	characterService domain.CharacterService
 }
 
 // NewSessionService creates a new session service
- func NewSessionService(sessionRepo domain.SessionRepository, messageRepo domain.MessageRepository, aiService domain.AIService, characterService domain.CharacterService) domain.SessionService {
+func NewSessionService(sessionRepo domain.SessionRepository, messageRepo domain.MessageRepository, aiService domain.AIService, characterService domain.CharacterService) domain.SessionService {
 	return &sessionService{
-		sessionRepo: sessionRepo,
-		messageRepo: messageRepo,
-		aiService: aiService,
+		sessionRepo:      sessionRepo,
+		messageRepo:      messageRepo,
+		aiService:        aiService,
 		characterService: characterService,
 	}
 }
 
 // CreateSession creates a new chat session
- func (s *sessionService) CreateSession(userID string, characterID uuid.UUID) (*domain.Session, error) {
+func (s *sessionService) CreateSession(userID string, characterID uuid.UUID) (*domain.Session, error) {
 	session := &domain.Session{
 		ID:           uuid.New(),
 		UserID:       userID,
@@ -44,17 +44,17 @@ import (
 }
 
 // GetSessionByID retrieves a session by ID
- func (s *sessionService) GetSessionByID(id uuid.UUID) (*domain.Session, error) {
+func (s *sessionService) GetSessionByID(id uuid.UUID) (*domain.Session, error) {
 	return s.sessionRepo.GetByID(id)
 }
 
 // GetUserSessions retrieves all sessions for a user
- func (s *sessionService) GetUserSessions(userID string) ([]*domain.Session, error) {
+func (s *sessionService) GetUserSessions(userID string) ([]*domain.Session, error) {
 	return s.sessionRepo.GetByUserID(userID)
 }
 
 // SendMessage sends a message in a session
- func (s *sessionService) SendMessage(sessionID uuid.UUID, content string, sender string) (*domain.Message, error) {
+func (s *sessionService) SendMessage(sessionID uuid.UUID, content string, sender string) (*domain.Message, error) {
 	message := &domain.Message{
 		ID:        uuid.New(),
 		SessionID: sessionID,
@@ -74,7 +74,9 @@ import (
 	}
 
 	session.LastActivity = time.Now()
-	s.sessionRepo.Save(session)
+	if err := s.sessionRepo.Save(session); err != nil {
+		return message, err
+	}
 
 	// 生成AI回复（如果消息来自用户）
 	if sender != "ai" {
@@ -102,13 +104,15 @@ import (
 			Timestamp: time.Now(),
 		}
 
-		s.messageRepo.Save(aiMessage)
+		if err := s.messageRepo.Save(aiMessage); err != nil {
+			return message, err
+		}
 	}
 
 	return message, nil
 }
 
 // GetSessionMessages retrieves all messages in a session
- func (s *sessionService) GetSessionMessages(sessionID uuid.UUID) ([]*domain.Message, error) {
+func (s *sessionService) GetSessionMessages(sessionID uuid.UUID) ([]*domain.Message, error) {
 	return s.messageRepo.GetBySessionID(sessionID)
 }

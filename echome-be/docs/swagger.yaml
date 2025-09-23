@@ -276,13 +276,46 @@ paths:
       summary: 获取所有角色
       tags:
       - characters
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新角色
+      parameters:
+      - description: 角色信息
+        in: body
+        name: character
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Character'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Character'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 创建角色
+      tags:
+      - characters
   /characters/{id}:
     get:
       consumes:
       - application/json
-      description: Get detailed information about a specific character
+      description: 根据角色ID获取详细信息
       parameters:
-      - description: Character ID
+      - description: 角色ID
         in: path
         name: id
         required: true
@@ -294,16 +327,16 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/domain.Character'
-      summary: Get character by ID
+      summary: 获取角色详情
       tags:
       - characters
   /characters/search:
     get:
       consumes:
       - application/json
-      description: Search for roles by query string
+      description: 根据查询字符串搜索角色
       parameters:
-      - description: Search query
+      - description: 搜索查询
         in: query
         name: q
         required: true
@@ -323,7 +356,7 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Search roles
+      summary: 搜索角色
       tags:
       - characters
   /ws/asr:

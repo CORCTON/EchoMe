@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"errors"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -180,18 +181,37 @@ func (r *MemoryCharacterRepository) Search(query string) ([]*domain.Character, e
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var results []*domain.Character
+	if query == "" {
+		return r.getAllCharacters(), nil
+	}
 
-	// 简单的字符串匹配搜索
+	var results []*domain.Character
+	queryLower := strings.ToLower(query)
+
+	// 模糊搜索：支持名称、描述、角色设定的部分匹配
 	for _, character := range r.characters {
-		if character.Name == query ||
-			character.Description == query ||
-			character.Persona == query {
+		if r.matchesQuery(character, queryLower) {
 			results = append(results, character)
 		}
 	}
 
 	return results, nil
+}
+
+// matchesQuery 检查角色是否匹配查询条件
+func (r *MemoryCharacterRepository) matchesQuery(character *domain.Character, queryLower string) bool {
+	return strings.Contains(strings.ToLower(character.Name), queryLower) ||
+		strings.Contains(strings.ToLower(character.Description), queryLower) ||
+		strings.Contains(strings.ToLower(character.Persona), queryLower)
+}
+
+// getAllCharacters 获取所有角色（内部方法，不加锁）
+func (r *MemoryCharacterRepository) getAllCharacters() []*domain.Character {
+	var characters []*domain.Character
+	for _, character := range r.characters {
+		characters = append(characters, character)
+	}
+	return characters
 }
 
 // Save 新建角色

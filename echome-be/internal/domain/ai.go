@@ -10,7 +10,7 @@ import (
 // @Description AI服务接口，提供生成响应的能力
 type AIService interface {
 	// HandleASR 处理ASR请求
-	HandleASR(ctx context.Context, clientWS *websocket.Conn, config ASRConfig) error
+	HandleASR(ctx context.Context, clientWS *websocket.Conn) error
 
 	// HandleTTS 处理TTS请求
 	HandleTTS(ctx context.Context, clientWS *websocket.Conn, config TTSConfig) error

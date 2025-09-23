@@ -3,160 +3,339 @@ package aliyun
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
-	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
+	"golang.org/x/sync/errgroup"
 )
 
-// ASRConfig 定义ASR参数配置
-type ASRConfig struct {
-	Model         string   `json:"model"`                    // 模型名称
-	Format        string   `json:"format"`                   // 音频格式
-	SampleRate    int      `json:"sample_rate"`              // 采样率
-	LanguageHints []string `json:"language_hints,omitempty"` // 语言提示
-}
-
-// DefaultASRConfig 返回Paraformer模型的默认配置
-func DefaultASRConfig() ASRConfig {
-	return ASRConfig{
-		Model:      "paraformer-realtime-v2",
-		Format:     "pcm",
-		SampleRate: 16000,
+// DefaultASRConfig 返回默认的阿里云WebSocket实时ASR配置
+func DefaultASRConfig() domain.ASRConfig {
+	return domain.ASRConfig{
+		Model:         "paraformer-realtime-v2",
+		Format:        "pcm",
+		SampleRate:    24000,
+		LanguageHints: []string{"zh", "en"},
 	}
 }
 
-// HandleASR 通过阿里云WebSocket处理语音转文本
-func (client *AliClient) HandleASR(ctx context.Context, clientWS *websocket.Conn, config domain.ASRConfig) error {
-	// 转换配置类型
-	asrConfig := ASRConfig{
-		Model:         config.Model,
-		Format:        config.Format,
-		SampleRate:    config.SampleRate,
-		LanguageHints: config.LanguageHints,
+// sendHeartbeat 定期发送心跳消息保持连接活跃
+func sendHeartbeat(ctx context.Context, ws *websocket.Conn, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// 发送ping消息
+			if err := ws.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(1*time.Second)); err != nil {
+				return
+			}
+		}
 	}
-	// 连接到阿里云ASR WebSocket
-	dialer := websocket.Dialer{}
-	headers := http.Header{}
-	headers.Add("Authorization", "Bearer "+client.apiKey)
-	aliWS, _, err := dialer.Dial("wss://dashscope.aliyuncs.com/api-ws/v1/inference", headers)
+}
+
+// HandleASR 通过阿里云Model Studio Paraformer处理语音识别
+func (client *AliClient) HandleASR(ctx context.Context, clientWS *websocket.Conn) error {
+	// 连接到阿里云Model Studio ASR WebSocket
+	asrWS, taskID, err := connectToModelStudioASR(client.apiKey, DefaultASRConfig())
 	if err != nil {
-		return err
+		return fmt.Errorf("连接Model Studio ASR失败: %w", err)
 	}
-	defer aliWS.Close()
+	defer asrWS.Close()
 
-	// 生成任务ID
+	g, ctx := errgroup.WithContext(ctx)
+
+	// 启动心跳goroutine，每15秒发送一次ping
+	g.Go(func() error {
+		sendHeartbeat(ctx, asrWS, 15*time.Second)
+		return nil
+	})
+
+	// 从客户端读取音频并发送到阿里云
+	g.Go(func() error {
+		return forwardAudioToModelStudio(ctx, clientWS, asrWS, taskID)
+	})
+
+	// 从阿里云读取识别结果
+	g.Go(func() error {
+		return handleModelStudioASRResults(ctx, asrWS, clientWS)
+	})
+
+	return g.Wait()
+}
+
+// connectToModelStudioASR 连接到阿里云WebSocket实时ASR服务
+func connectToModelStudioASR(apiKey string, config domain.ASRConfig) (*websocket.Conn, string, error) {
+	// 阿里云WebSocket实时ASR URL
+	url := "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
+
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 30 * time.Second,
+		ReadBufferSize:   4096,
+		WriteBufferSize:  4096,
+	}
+
+	headers := http.Header{}
+	headers.Add("Authorization", "bearer "+apiKey)
+	headers.Add("user-agent", "EchoMe/1.0")
+	headers.Add("X-DashScope-DataInspection", "enable")
+	ws, _, err := dialer.Dial(url, headers)
+	if err != nil {
+		return nil, "", fmt.Errorf("连接WebSocket ASR失败: %v", err)
+	}
+
+	fmt.Println("WebSocket ASR连接成功")
+
+	// 生成UUID格式的任务ID
 	taskID := uuid.New().String()
 
-	// 发送启动任务指令
-	runTask := map[string]interface{}{
-		"header": map[string]interface{}{
+	// 根据文档发送初始化参数 - 启用心跳机制
+	initMsg := map[string]any{
+		"header": map[string]any{
 			"action":    "run-task",
 			"task_id":   taskID,
 			"streaming": "duplex",
 		},
-		"payload": map[string]interface{}{
+		"payload": map[string]any{
 			"task_group": "audio",
 			"task":       "asr",
 			"function":   "recognition",
-			"model":      asrConfig.Model,
-			"parameters": map[string]interface{}{
-				"format":                     asrConfig.Format,
-				"sample_rate":                asrConfig.SampleRate,
-				"disfluency_removal_enabled": false,
-				"language_hints":             asrConfig.LanguageHints,
+			"model":      config.Model,
+			"parameters": map[string]any{
+				"format":         config.Format,
+				"sample_rate":    config.SampleRate,
+				"language_hints": config.LanguageHints,
+				"heartbeat":      true,
 			},
-			"input": map[string]interface{}{},
+			"input": map[string]any{},
 		},
 	}
-	if err := aliWS.WriteJSON(runTask); err != nil {
-		return err
+
+	// 设置写入超时
+	if err := ws.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		fmt.Printf("设置写入超时失败: %v\n", err)
 	}
 
-	// 等待任务启动
-	var started bool
-	for !started {
-		_, msg, err := aliWS.ReadMessage()
-		if err != nil {
-			return err
-		}
-		var response map[string]interface{}
-		if err := json.Unmarshal(msg, &response); err != nil {
-			continue
-		}
-		header := response["header"].(map[string]interface{})
-		if header["event"] == "task-started" {
-			started = true
-		}
+	if err := ws.WriteJSON(initMsg); err != nil {
+		return nil, "", fmt.Errorf("发送初始化消息失败: %w", err)
 	}
 
-	// 使用WaitGroup管理协程
-	var wg sync.WaitGroup
-	wg.Add(2)
+	// 设置读取超时
+	if err := ws.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		fmt.Printf("设置读取超时失败: %v\n", err)
+	}
 
-	// 协程：将客户端音频转发到阿里云（二进制）
-	go func() {
-		defer wg.Done()
-		for {
-			mt, data, err := clientWS.ReadMessage()
-			if err != nil {
-				break
-			}
-			if mt == websocket.BinaryMessage {
-				if err := aliWS.WriteMessage(websocket.BinaryMessage, data); err != nil {
-					break
+	// 等待初始化响应
+	_, initResp, err := ws.ReadMessage()
+	if err != nil {
+		return nil, "", fmt.Errorf("读取初始化响应失败: %w", err)
+	}
+
+	fmt.Printf("ASR初始化响应: %s\n", string(initResp))
+
+	// 检查初始化是否成功
+	var initResponse map[string]any
+	if err := json.Unmarshal(initResp, &initResponse); err == nil {
+		if header, ok := initResponse["header"].(map[string]any); ok {
+			if event, ok := header["event"].(string); ok && event == "task-started" {
+				fmt.Println("ASR任务初始化成功")
+				// 保存task_id在websocket的上下文，以便后续使用
+				ws.SetPongHandler(func(string) error { return nil })
+			} else if event == "task-failed" {
+				errorCode := "未知错误"
+				errorMessage := "任务初始化失败"
+				if code, ok := header["error_code"].(string); ok {
+					errorCode = code
 				}
+				if msg, ok := header["error_message"].(string); ok {
+					errorMessage = msg
+				}
+				return nil, "", fmt.Errorf("ASR初始化失败: %s - %s", errorCode, errorMessage)
 			}
 		}
-		// 任务结束时发送finish-task
-		finishTask := map[string]interface{}{
-			"header": map[string]interface{}{
+	}
+
+	return ws, taskID, nil
+}
+
+// forwardAudioToModelStudio 转发音频数据到阿里云WebSocket ASR
+func forwardAudioToModelStudio(ctx context.Context, clientWS, asrWS *websocket.Conn, taskID string) error {
+	defer func() {
+		fmt.Println("音频发送结束，发送finish-task指令")
+		// 发送结束信号 - 根据文档格式，使用相同的taskID
+		endMsg := map[string]any{
+			"header": map[string]any{
 				"action":    "finish-task",
 				"task_id":   taskID,
 				"streaming": "duplex",
 			},
-			"payload": map[string]interface{}{
-				"input": map[string]interface{}{},
+			"payload": map[string]any{
+				"input": map[string]any{},
 			},
 		}
-		aliWS.WriteJSON(finishTask)
-	}()
 
-	// 协程：从阿里云读取结果并将文本发送给AI服务
-	go func() {
-		defer wg.Done()
-		for {
-			_, msg, err := aliWS.ReadMessage()
-			if err != nil {
-				break
-			}
-			var response map[string]interface{}
-			if err := json.Unmarshal(msg, &response); err != nil {
-				continue
-			}
-			header := response["header"].(map[string]interface{})
-			event := header["event"].(string)
-			if event == "result-generated" {
-				payload := response["payload"].(map[string]interface{})
-				output := payload["output"].(map[string]interface{})
-				sentence := output["sentence"].(map[string]interface{})
-				text := sentence["text"].(string)
-				aiResponse, err := client.GenerateResponse(ctx, text, "")
-				if err != nil {
-					log.Printf("AI服务错误: %v", err)
-					continue
-				}
-				// 将AI响应发送给客户端
-				clientWS.WriteJSON(map[string]string{"type": "asr_text", "text": aiResponse})
-			} else if event == "task-finished" || event == "task-failed" {
-				break
-			}
+		// 设置写入超时
+		if err := asrWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			fmt.Printf("设置写入超时失败: %v\n", err)
+		}
+
+		if err := asrWS.WriteJSON(endMsg); err != nil {
+			fmt.Printf("发送finish-task指令失败: %v\n", err)
 		}
 	}()
 
-	wg.Wait()
-	return nil
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("上下文已取消，停止音频转发")
+			return ctx.Err()
+		default:
+			messageType, data, err := clientWS.ReadMessage()
+			if err != nil {
+				fmt.Printf("从客户端读取消息失败: %v\n", err)
+				return nil
+			}
+
+			switch messageType {
+			case websocket.BinaryMessage:
+				// 设置写入超时
+				if err := asrWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+					fmt.Printf("设置写入超时失败: %v\n", err)
+				}
+
+				if err := asrWS.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					return fmt.Errorf("转发音频数据失败: %w", err)
+				}
+			case websocket.TextMessage:
+				var msg map[string]any
+				if err := json.Unmarshal(data, &msg); err == nil {
+					if msgType, ok := msg["type"].(string); ok && msgType == "finish" {
+						fmt.Println("收到客户端结束信号")
+						return nil
+					}
+				} else {
+					fmt.Printf("无法解析文本消息: %v, 消息内容: %s\n", err, string(data))
+				}
+			}
+		}
+	}
+}
+
+// handleModelStudioASRResults 处理阿里云WebSocket ASR识别结果
+func handleModelStudioASRResults(ctx context.Context, asrWS, clientWS *websocket.Conn) error {
+	resultReceived := false
+	
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("上下文已取消，停止处理ASR结果")
+			return ctx.Err()
+		default:
+			// 设置读取超时
+			if err := asrWS.SetReadDeadline(time.Now().Add(15 * time.Second)); err != nil {
+				fmt.Printf("设置读取超时失败: %v\n", err)
+			}
+
+			msgType, msg, err := asrWS.ReadMessage()
+			if err != nil {
+				// 根据WebSocket错误类型进行处理
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+					fmt.Printf("ASR连接正常关闭: %v\n", err)
+				} else {
+					fmt.Printf("ASR连接异常断开: %v\n", err)
+				}
+				return nil
+			}
+
+			// 确保只处理文本消息
+			if msgType != websocket.TextMessage {
+				continue
+			}
+
+			var response map[string]any
+			if err := json.Unmarshal(msg, &response); err != nil {
+				fmt.Printf("解析ASR响应失败: %v, 原始消息: %s\n", err, string(msg))
+				continue
+			}
+
+			// 根据文档解析响应格式
+			if header, ok := response["header"].(map[string]any); ok {
+				if event, ok := header["event"].(string); ok {
+					switch event {
+					case "result-generated":
+						// 处理识别结果
+						resultReceived = true
+						if payload, ok := response["payload"].(map[string]any); ok {
+							if output, ok := payload["output"].(map[string]any); ok {
+								if sentence, ok := output["sentence"].(map[string]any); ok {
+									if text, ok := sentence["text"].(string); ok && text != "" {
+										// 检查是否是heartbeat消息，如果是则跳过
+										if heartbeat, ok := sentence["heartbeat"].(bool); ok && heartbeat {
+											continue
+										}
+										// 构建客户端响应
+										clientResponse := map[string]any{
+											"type": "asr_result",
+											"text": text,
+										}
+
+										// 添加句子结束标志
+										if sentenceEnd, ok := sentence["sentence_end"].(bool); ok {
+											clientResponse["sentence_end"] = sentenceEnd
+										}
+
+										// 设置写入超时
+										if err := clientWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+											fmt.Printf("设置客户端写入超时失败: %v\n", err)
+										}
+
+										// 发送到客户端
+										if err := clientWS.WriteJSON(clientResponse); err != nil {
+											fmt.Printf("向客户端发送ASR结果失败: %v\n", err)
+										}
+									}
+								}
+							}
+						}
+					case "task-finished":
+						fmt.Println("ASR任务完成")
+						if !resultReceived {
+							fmt.Println("警告: 任务完成但未收到任何识别结果")
+						}
+						// 发送任务完成通知给客户端
+						clientWS.WriteJSON(map[string]any{
+							"type": "asr_finished",
+						})
+						return nil
+					case "task-failed":
+						// 根据文档，错误信息在header中
+						errorCode := "未知错误"
+						errorMessage := "任务执行失败"
+						if code, ok := header["error_code"].(string); ok {
+							errorCode = code
+						}
+						if msg, ok := header["error_message"].(string); ok {
+							errorMessage = msg
+						}
+						fmt.Printf("ASR任务失败详情: 代码=%s, 消息=%s\n", errorCode, errorMessage)
+						// 发送错误信息给客户端
+						clientWS.WriteJSON(map[string]any{
+							"type":        "asr_error",
+							"error_code":  errorCode,
+							"error_message": errorMessage,
+						})
+						return fmt.Errorf("ASR任务失败: %s - %s", errorCode, errorMessage)
+					default:
+					}
+				}
+			}
+		}
+	}
 }

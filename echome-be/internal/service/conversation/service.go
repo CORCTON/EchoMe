@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
+	"golang.org/x/sync/errgroup"
 )
 
-// ConversationService implements domain.ConversationService
+// ConversationService 会话服务实现
 type ConversationService struct {
 	aiService        domain.AIService
 	characterService domain.CharacterService
@@ -21,7 +21,7 @@ type ConversationService struct {
 	messageRepo      domain.MessageRepository
 }
 
-// NewConversationService creates a new conversation service
+// NewConversationService 创建会话服务
 func NewConversationService(
 	aiService domain.AIService,
 	characterService domain.CharacterService,
@@ -36,161 +36,102 @@ func NewConversationService(
 	}
 }
 
-// StartVoiceConversation starts a voice conversation session
+// StartVoiceConversation 开始语音会话
 func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *domain.VoiceConversationRequest) error {
-	log.Printf("Starting voice conversation for session %s with character %s", req.SessionID, req.CharacterID)
+	log.Printf("启动语音会话: session=%s character=%s", req.SessionID, req.CharacterID)
 
-	// Validate input
 	if req.SessionID == uuid.Nil {
-		return WrapError(ErrCodeInvalidInput, "Session ID is required", nil)
+		return WrapError(ErrCodeInvalidInput, "缺少 SessionID", nil)
 	}
 	if req.CharacterID == uuid.Nil {
-		return WrapError(ErrCodeInvalidInput, "Character ID is required", nil)
+		return WrapError(ErrCodeInvalidInput, "缺少 CharacterID", nil)
 	}
 	if req.WebSocketConn == nil {
-		return WrapError(ErrCodeInvalidInput, "WebSocket connection is required", nil)
+		return WrapError(ErrCodeInvalidInput, "缺少 WebSocket 连接", nil)
 	}
 
-	// Get character information
 	character, err := s.characterService.GetCharacterByID(req.CharacterID)
 	if err != nil {
-		log.Printf("Failed to get character %s: %v", req.CharacterID, err)
-		return WrapError(ErrCodeCharacterNotFound, "Character not found", err)
+		return WrapError(ErrCodeCharacterNotFound, "角色不存在", err)
 	}
 
-	// Get voice configuration for the character
 	voiceConfig, err := s.GetCharacterVoiceConfig(req.CharacterID)
 	if err != nil {
-		log.Printf("Failed to get voice config for character %s: %v", req.CharacterID, err)
-		return WrapError(ErrCodeConfigurationError, "Failed to get voice configuration", err)
+		return WrapError(ErrCodeConfigurationError, "获取角色语音配置失败", err)
 	}
 
-	// Validate session exists
 	session, err := s.sessionService.GetSessionByID(req.SessionID)
 	if err != nil {
-		log.Printf("Failed to get session %s: %v", req.SessionID, err)
-		return WrapError(ErrCodeSessionNotFound, "Session not found", err)
+		return WrapError(ErrCodeSessionNotFound, "会话不存在", err)
 	}
 
-	log.Printf("Voice conversation started for session %s, character: %s", session.ID, character.Name)
-
-	// Handle the voice conversation flow
+	log.Printf("语音会话已启动: session=%s character=%s", session.ID, character.Name)
 	return s.handleVoiceConversationFlow(ctx, req.WebSocketConn, voiceConfig, session)
 }
 
-// handleVoiceConversationFlow manages the complete voice conversation pipeline
-func (s *ConversationService) handleVoiceConversationFlow(ctx context.Context, clientWS *websocket.Conn, voiceConfig *domain.VoiceConfig, session *domain.Session) error {
-	log.Printf("Starting voice conversation flow for session %s", session.ID)
+// 语音会话处理流程
+func (s *ConversationService) handleVoiceConversationFlow(
+	ctx context.Context,
+	clientWS *websocket.Conn,
+	voiceConfig *domain.VoiceConfig,
+	session *domain.Session,
+) error {
+	log.Printf("处理语音会话: session=%s", session.ID)
 
-	// Use WaitGroup to manage goroutines
-	var wg sync.WaitGroup
-	wg.Add(1)
+	g, ctx := errgroup.WithContext(ctx)
 
-	// Channel for communication between goroutines
-	textChan := make(chan string, 10)
-	audioChan := make(chan []byte, 10)
-	errorChan := make(chan error, 5)
-
-	// Goroutine to handle the complete voice pipeline
-	go func() {
-		defer wg.Done()
-		defer close(textChan)
-		defer close(audioChan)
-
+	// 读消息循环
+	g.Go(func() error {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("Context cancelled for session %s", session.ID)
-				return
+				return ctx.Err()
 			default:
-				// Read message from client
 				messageType, data, err := clientWS.ReadMessage()
 				if err != nil {
-					log.Printf("Error reading from client WebSocket: %v", err)
-					errorChan <- err
-					return
+					return err // 出错直接返回
 				}
 
 				switch messageType {
 				case websocket.BinaryMessage:
-					// Handle audio input - process through ASR -> AI -> TTS pipeline
-					err := s.processAudioMessage(ctx, data, voiceConfig, session, clientWS)
-					if err != nil {
-						log.Printf("Error processing audio message: %v", err)
-						errorChan <- err
+					// 内联处理二进制语音消息
+					log.Printf("收到语音消息: session=%s", session.ID)
+					response := map[string]any{
+						"type":       "audio_received",
+						"message":    "语音已接收，开始处理",
+						"session_id": session.ID,
 					}
-
+					responseData, err := json.Marshal(response)
+					if err != nil {
+						return fmt.Errorf("序列化响应失败: %w", err)
+					}
+					if err := clientWS.WriteMessage(websocket.TextMessage, responseData); err != nil {
+						return err
+					}
 				case websocket.TextMessage:
-					// Handle text input - process through AI -> TTS pipeline
-					var textMsg map[string]interface{}
+					var textMsg map[string]any
 					if err := json.Unmarshal(data, &textMsg); err != nil {
-						log.Printf("Error unmarshaling text message: %v", err)
 						continue
 					}
-
 					if text, ok := textMsg["text"].(string); ok {
-						err := s.processTextInput(ctx, text, voiceConfig, session, clientWS)
-						if err != nil {
-							log.Printf("Error processing text input: %v", err)
-							errorChan <- err
+						if err := s.processTextInput(ctx, text, voiceConfig, session, clientWS); err != nil {
+							return err
 						}
 					}
-
 				case websocket.CloseMessage:
-					log.Printf("Client closed connection for session %s", session.ID)
-					return
+					log.Printf("客户端关闭连接: session=%s", session.ID)
+					return nil
 				}
 			}
 		}
-	}()
-
-	// Wait for completion or error
-	select {
-	case err := <-errorChan:
-		log.Printf("Voice conversation error for session %s: %v", session.ID, err)
-		return err
-	case <-ctx.Done():
-		log.Printf("Voice conversation cancelled for session %s", session.ID)
-		return ctx.Err()
-	}
+	})
+	return g.Wait()
 }
 
-// processAudioMessage handles audio input through ASR -> AI -> TTS pipeline
-func (s *ConversationService) processAudioMessage(ctx context.Context, audioData []byte, voiceConfig *domain.VoiceConfig, session *domain.Session, clientWS *websocket.Conn) error {
-	log.Printf("Processing audio message for session %s", session.ID)
-
-	// For now, we'll simulate ASR processing since the current ASR implementation
-	// is designed for direct WebSocket handling. In a real implementation,
-	// we would need to refactor the ASR to work with byte arrays.
-
-	// TODO: Implement proper ASR processing
-	// This is a placeholder - in reality we would:
-	// 1. Send audioData to ASR service
-	// 2. Get transcribed text
-	// 3. Process through AI
-	// 4. Convert AI response to speech
-	// 5. Send audio back to client
-
-	// For now, send a message indicating audio was received
-	response := map[string]interface{}{
-		"type":       "audio_received",
-		"message":    "Audio received and processing started",
-		"session_id": session.ID,
-	}
-
-	responseData, err := json.Marshal(response)
-	if err != nil {
-		return fmt.Errorf("failed to marshal audio response: %w", err)
-	}
-
-	return clientWS.WriteMessage(websocket.TextMessage, responseData)
-}
-
-// processTextInput handles text input through AI -> TTS pipeline
+// 处理文本输入（AI -> TTS 流程）
 func (s *ConversationService) processTextInput(ctx context.Context, text string, voiceConfig *domain.VoiceConfig, session *domain.Session, clientWS *websocket.Conn) error {
-	log.Printf("Processing text input for session %s: %s", session.ID, text)
+	log.Printf("收到文本输入: session=%s text=%s", session.ID, text)
 
-	// Save user message
 	userMessage := &domain.Message{
 		ID:        uuid.New(),
 		SessionID: session.ID,
@@ -198,20 +139,10 @@ func (s *ConversationService) processTextInput(ctx context.Context, text string,
 		Sender:    "user",
 		Timestamp: time.Now(),
 	}
+	_ = s.messageRepo.Save(userMessage)
 
-	if err := s.messageRepo.Save(userMessage); err != nil {
-		log.Printf("Failed to save user message: %v", err)
-		// Continue processing even if save fails
-	}
+	sessionHistory, _ := s.messageRepo.GetBySessionID(session.ID)
 
-	// Get session history for context
-	sessionHistory, err := s.messageRepo.GetBySessionID(session.ID)
-	if err != nil {
-		log.Printf("Failed to get session history: %v", err)
-		sessionHistory = []*domain.Message{} // Use empty history if fetch fails
-	}
-
-	// Create AI request with character context
 	aiRequest := &domain.AIRequest{
 		UserInput:        text,
 		CharacterContext: voiceConfig.Character,
@@ -219,14 +150,19 @@ func (s *ConversationService) processTextInput(ctx context.Context, text string,
 		Language:         voiceConfig.Language,
 	}
 
-	// Generate AI response
 	aiResponse, err := s.generateAIResponse(ctx, aiRequest)
 	if err != nil {
-		log.Printf("Failed to generate AI response: %v", err)
-		return s.sendErrorResponse(clientWS, "Failed to generate AI response", session.ID)
+		// 内联错误响应处理
+		errorResponse := map[string]interface{}{
+			"type":       "error",
+			"message":    "生成 AI 回复失败",
+			"session_id": session.ID,
+			"timestamp":  time.Now(),
+		}
+		responseData, _ := json.Marshal(errorResponse)
+		return clientWS.WriteMessage(websocket.TextMessage, responseData)
 	}
 
-	// Save AI message
 	aiMessage := &domain.Message{
 		ID:        uuid.New(),
 		SessionID: session.ID,
@@ -234,13 +170,8 @@ func (s *ConversationService) processTextInput(ctx context.Context, text string,
 		Sender:    "ai",
 		Timestamp: time.Now(),
 	}
+	_ = s.messageRepo.Save(aiMessage)
 
-	if err := s.messageRepo.Save(aiMessage); err != nil {
-		log.Printf("Failed to save AI message: %v", err)
-		// Continue processing even if save fails
-	}
-
-	// Send text response to client
 	textResponse := map[string]interface{}{
 		"type":       "text_response",
 		"text":       aiResponse.Text,
@@ -249,28 +180,12 @@ func (s *ConversationService) processTextInput(ctx context.Context, text string,
 		"timestamp":  aiMessage.Timestamp,
 	}
 
-	responseData, err := json.Marshal(textResponse)
-	if err != nil {
-		return fmt.Errorf("failed to marshal text response: %w", err)
-	}
-
-	if err := clientWS.WriteMessage(websocket.TextMessage, responseData); err != nil {
-		return fmt.Errorf("failed to send text response: %w", err)
-	}
-
-	// TODO: Convert AI response to speech using TTS
-	// This would involve:
-	// 1. Using the character's voice configuration
-	// 2. Calling TTS service with the AI response text
-	// 3. Sending the generated audio back to the client
-
-	log.Printf("Text processing completed for session %s", session.ID)
-	return nil
+	responseData, _ := json.Marshal(textResponse)
+	return clientWS.WriteMessage(websocket.TextMessage, responseData)
 }
 
-// generateAIResponse generates AI response using the AI service
+// 调用 AI 服务生成回复
 func (s *ConversationService) generateAIResponse(ctx context.Context, req *domain.AIRequest) (*domain.AIResponse, error) {
-	// Build character context string
 	characterContext := ""
 	if req.CharacterContext != nil {
 		characterContext = fmt.Sprintf("你是%s。%s。%s",
@@ -279,10 +194,9 @@ func (s *ConversationService) generateAIResponse(ctx context.Context, req *domai
 			req.CharacterContext.Persona)
 	}
 
-	// Generate response using existing AI service
 	responseText, err := s.aiService.GenerateResponse(ctx, req.UserInput, characterContext)
 	if err != nil {
-		return nil, fmt.Errorf("AI service error: %w", err)
+		return nil, fmt.Errorf("AI 服务错误: %w", err)
 	}
 
 	return &domain.AIResponse{
@@ -295,49 +209,37 @@ func (s *ConversationService) generateAIResponse(ctx context.Context, req *domai
 	}, nil
 }
 
-// ProcessTextMessage processes a text message and returns AI response
+// 文本消息处理（非实时接口）
 func (s *ConversationService) ProcessTextMessage(ctx context.Context, req *domain.TextMessageRequest) (*domain.TextMessageResponse, error) {
-	log.Printf("Processing text message for session %s", req.SessionID)
-
-	// Validate input
 	if req.SessionID == uuid.Nil {
-		return nil, WrapError(ErrCodeInvalidInput, "Session ID is required", nil)
+		return nil, WrapError(ErrCodeInvalidInput, "缺少 SessionID", nil)
 	}
 	if req.CharacterID == uuid.Nil {
-		return nil, WrapError(ErrCodeInvalidInput, "Character ID is required", nil)
+		return nil, WrapError(ErrCodeInvalidInput, "缺少 CharacterID", nil)
 	}
 	if req.UserInput == "" {
-		return nil, WrapError(ErrCodeInvalidInput, "User input is required", nil)
+		return nil, WrapError(ErrCodeInvalidInput, "缺少用户输入", nil)
 	}
 
-	// Get character information
 	character, err := s.characterService.GetCharacterByID(req.CharacterID)
 	if err != nil {
-		return nil, WrapError(ErrCodeCharacterNotFound, "Character not found", err)
+		return nil, WrapError(ErrCodeCharacterNotFound, "角色不存在", err)
 	}
 
-	// Get session history for context
-	sessionHistory, err := s.messageRepo.GetBySessionID(req.SessionID)
-	if err != nil {
-		log.Printf("Failed to get session history: %v", err)
-		sessionHistory = []*domain.Message{} // Use empty history if fetch fails
-	}
+	sessionHistory, _ := s.messageRepo.GetBySessionID(req.SessionID)
 
-	// Create AI request
 	aiRequest := &domain.AIRequest{
 		UserInput:        req.UserInput,
 		CharacterContext: character,
 		SessionHistory:   sessionHistory,
-		Language:         "zh-CN", // Default language
+		Language:         "zh-CN",
 	}
 
-	// Generate AI response
 	aiResponse, err := s.generateAIResponse(ctx, aiRequest)
 	if err != nil {
-		return nil, WrapError(ErrCodeAIGenerationFailed, "Failed to generate AI response", err)
+		return nil, WrapError(ErrCodeAIGenerationFailed, "生成 AI 回复失败", err)
 	}
 
-	// Save user message
 	userMessage := &domain.Message{
 		ID:        uuid.New(),
 		SessionID: req.SessionID,
@@ -345,13 +247,8 @@ func (s *ConversationService) ProcessTextMessage(ctx context.Context, req *domai
 		Sender:    "user",
 		Timestamp: time.Now(),
 	}
+	_ = s.messageRepo.Save(userMessage)
 
-	if err := s.messageRepo.Save(userMessage); err != nil {
-		log.Printf("Failed to save user message: %v", err)
-		// Don't fail the request if message save fails, just log it
-	}
-
-	// Save AI message
 	aiMessage := &domain.Message{
 		ID:        uuid.New(),
 		SessionID: req.SessionID,
@@ -359,13 +256,7 @@ func (s *ConversationService) ProcessTextMessage(ctx context.Context, req *domai
 		Sender:    "ai",
 		Timestamp: time.Now(),
 	}
-
-	if err := s.messageRepo.Save(aiMessage); err != nil {
-		log.Printf("Failed to save AI message: %v", err)
-		// Don't fail the request if message save fails, just log it
-	}
-
-	log.Printf("Successfully processed text message for session %s, generated response length: %d", req.SessionID, len(aiResponse.Text))
+	_ = s.messageRepo.Save(aiMessage)
 
 	return &domain.TextMessageResponse{
 		Response:  aiResponse.Text,
@@ -374,14 +265,13 @@ func (s *ConversationService) ProcessTextMessage(ctx context.Context, req *domai
 	}, nil
 }
 
-// GetCharacterVoiceConfig retrieves voice configuration for a character
+// 获取角色的语音配置
 func (s *ConversationService) GetCharacterVoiceConfig(characterID uuid.UUID) (*domain.VoiceConfig, error) {
 	character, err := s.characterService.GetCharacterByID(characterID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get character: %w", err)
+		return nil, fmt.Errorf("获取角色失败: %w", err)
 	}
 
-	// Create default voice configuration if character doesn't have one
 	voiceConfig := &domain.VoiceConfig{
 		Character: character,
 		ASRConfig: domain.ASRConfig{
@@ -391,7 +281,7 @@ func (s *ConversationService) GetCharacterVoiceConfig(characterID uuid.UUID) (*d
 		},
 		TTSConfig: domain.TTSConfig{
 			Model:          "qwen-tts-realtime",
-			Voice:          "Cherry", // Default voice
+			Voice:          "Cherry",
 			ResponseFormat: "pcm",
 			SampleRate:     24000,
 			Mode:           "server_commit",
@@ -399,36 +289,12 @@ func (s *ConversationService) GetCharacterVoiceConfig(characterID uuid.UUID) (*d
 		Language: "zh-CN",
 	}
 
-	// Use character's voice configuration if available
 	if character.VoiceConfig != nil {
 		voiceConfig.TTSConfig.Voice = character.VoiceConfig.Voice
-		voiceConfig.TTSConfig.SampleRate = int(character.VoiceConfig.SpeechRate * 24000) // Adjust sample rate based on speech rate
+		voiceConfig.TTSConfig.SampleRate = int(character.VoiceConfig.SpeechRate * 24000)
 		voiceConfig.Language = character.VoiceConfig.Language
-
-		// Apply custom TTS parameters if available
-		if character.VoiceConfig.CustomParams != nil {
-			// Here we could apply custom parameters to the TTS config
-			// For now, we'll just log them
-			log.Printf("Character %s has custom voice params: %v", character.Name, character.VoiceConfig.CustomParams)
-		}
+		log.Printf("角色 %s 使用自定义语音参数: %v", character.Name, character.VoiceConfig.CustomParams)
 	}
 
 	return voiceConfig, nil
-}
-
-// sendErrorResponse sends an error response to the client
-func (s *ConversationService) sendErrorResponse(clientWS *websocket.Conn, errorMsg string, sessionID uuid.UUID) error {
-	errorResponse := map[string]interface{}{
-		"type":       "error",
-		"message":    errorMsg,
-		"session_id": sessionID,
-		"timestamp":  time.Now(),
-	}
-
-	responseData, err := json.Marshal(errorResponse)
-	if err != nil {
-		return fmt.Errorf("failed to marshal error response: %w", err)
-	}
-
-	return clientWS.WriteMessage(websocket.TextMessage, responseData)
 }
