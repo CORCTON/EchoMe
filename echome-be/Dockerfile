@@ -56,6 +56,6 @@ EXPOSE ${APP_PORT}
 COPY --from=builder --chown=nonroot:nonroot /app/${APP_NAME} .
 COPY --from=builder --chown=nonroot:nonroot /app/config/etc ./config/etc
 
-# 定义入口点和命令，支持配置覆盖
-ENTRYPOINT ["./${APP_NAME}"]
+# 定义入口点和命令
+ENTRYPOINT ["./echome-api"]
 CMD ["-f", "config/etc/config.yaml"]
