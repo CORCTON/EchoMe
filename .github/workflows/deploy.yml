@@ -1,0 +1,147 @@
+name: CI Build & Deploy
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'echome-be/**'
+      - 'echome-fe/**'
+      - 'deploy/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force deploy even if no code changes'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BE: ghcr.io/${{ github.repository_owner }}/echome-be
+  IMAGE_FE: ghcr.io/${{ github.repository_owner }}/echome-fe
+  SERVER_HOST: 115.190.101.38
+  DOCKER_COMPOSE_PATH: /opt/echome/deploy/docker-compose.yml
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      be: ${{ steps.filter.outputs.be }}
+      fe: ${{ steps.filter.outputs.fe }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            be:
+              - 'echome-be/**'
+            fe:
+              - 'echome-fe/**'
+
+  build-push:
+    name: Build & Push Images
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [be, fe]
+      fail-fast: false
+    # 不能直接用 needs.changes.outputs[matrix.service]，改为在步骤内判断
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decide skip
+        id: decide
+        run: |
+          svc=${{ matrix.service }}
+          force=${{ github.event.inputs.force || 'false' }}
+          be_changed='${{ needs.changes.outputs.be }}'
+          fe_changed='${{ needs.changes.outputs.fe }}'
+          echo "service=$svc force=$force be=$be_changed fe=$fe_changed"
+          if [ "$svc" = "be" ] && [ "$be_changed" != "true" ] && [ "$force" != "true" ]; then echo "skip=true" >> $GITHUB_OUTPUT; fi
+          if [ "$svc" = "fe" ] && [ "$fe_changed" != "true" ] && [ "$force" != "true" ]; then echo "skip=true" >> $GITHUB_OUTPUT; fi
+      - name: Skip notice
+        if: steps.decide.outputs.skip == 'true'
+        run: echo "No changes for this service and not forced. Skipping build."
+      - name: Set up QEMU
+        if: steps.decide.outputs.skip != 'true'
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        if: steps.decide.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        if: steps.decide.outputs.skip != 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & Push
+        if: steps.decide.outputs.skip != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service == 'be' && 'echome-be' || 'echome-fe' }}
+          file: ${{ matrix.service == 'be' && 'echome-be/Dockerfile' || 'echome-fe/Dockerfile' }}
+          push: true
+          tags: |
+            ${{ matrix.service == 'be' && env.IMAGE_BE || env.IMAGE_FE }}:latest
+            ${{ matrix.service == 'be' && env.IMAGE_BE || env.IMAGE_FE }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ matrix.service == 'be' && env.IMAGE_BE || env.IMAGE_FE }}:buildcache
+          cache-to: type=registry,ref=${{ matrix.service == 'be' && env.IMAGE_BE || env.IMAGE_FE }}:buildcache,mode=max
+
+  deploy:
+    name: Remote Deploy
+    needs: [build-push, changes]
+    runs-on: ubuntu-latest
+    if: ${{ needs.changes.outputs.be == 'true' || needs.changes.outputs.fe == 'true' || github.event.inputs.force == 'true' }}
+    steps:
+      - name: Prepare SSH key
+        run: |
+          echo "${{ secrets.SERVER_SSH_KEY }}" > key.pem
+          chmod 600 key.pem
+      - name: Deploy via SSH
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ env.SERVER_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i key.pem $SERVER_USER@$SERVER_HOST <<'EOF'
+          set -e
+          sudo mkdir -p /opt/echome
+          cd /opt/echome
+          if [ ! -d deploy ]; then
+            mkdir deploy
+          fi
+          # 写入或更新 docker-compose（若你改为 git clone，可删除此段）
+          cat > deploy/docker-compose.yml <<'COMPOSE'
+          version: "3.9"
+          services:
+            echome-be:
+              image: ghcr.io/${{ github.repository_owner }}/echome-be:latest
+              restart: unless-stopped
+              ports:
+                - "8081:8081"
+            echome-fe:
+              image: ghcr.io/${{ github.repository_owner }}/echome-fe:latest
+              restart: unless-stopped
+              ports:
+                - "3000:3000"
+              depends_on:
+                - echome-be
+          COMPOSE
+          echo "Pulling latest images..."
+          sudo docker compose -f deploy/docker-compose.yml pull || sudo docker-compose -f deploy/docker-compose.yml pull
+          echo "Recreating containers..."
+          sudo docker compose -f deploy/docker-compose.yml up -d || sudo docker-compose -f deploy/docker-compose.yml up -d
+          sudo docker image prune -f || true
+          EOF

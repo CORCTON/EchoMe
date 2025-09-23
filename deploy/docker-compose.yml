@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  echome-be:
+    image: ghcr.io/corcton/echome-be:latest
+    container_name: echome-be
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    networks:
+      - echome-net
+
+  echome-fe:
+    image: ghcr.io/corcton/echome-fe:latest
+    container_name: echome-fe
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - echome-be
+    networks:
+      - echome-net
+
+networks:
+  echome-net:
+    driver: bridge

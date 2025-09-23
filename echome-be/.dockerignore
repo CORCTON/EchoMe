@@ -1,0 +1,10 @@
+# Go build cache
+/build
+/bin
+/dist
+**/*.swp
+.git
+.gitignore
+Dockerfile
+README.md
+Makefile
