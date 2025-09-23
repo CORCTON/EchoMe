@@ -26,8 +26,6 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_BE: ghcr.io/${{ github.repository_owner }}/echome-be
-  IMAGE_FE: ghcr.io/${{ github.repository_owner }}/echome-fe
   SERVER_HOST: 115.190.101.38
   DOCKER_COMPOSE_PATH: /opt/echome/deploy/docker-compose.yml
 
@@ -58,9 +56,13 @@ jobs:
       matrix:
         service: [be, fe]
       fail-fast: false
-    # 不能直接用 needs.changes.outputs[matrix.service]，改为在步骤内判断
     steps:
       - uses: actions/checkout@v4
+      - name: Compute lowercase owner
+        id: meta
+        run: |
+          owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
       - name: Decide skip
         id: decide
         run: |
@@ -95,10 +97,10 @@ jobs:
           file: ${{ matrix.service == 'be' && 'echome-be/Dockerfile' || 'echome-fe/Dockerfile' }}
           push: true
           tags: |
-            ${{ matrix.service == 'be' && env.IMAGE_BE || env.IMAGE_FE }}:latest
-            ${{ matrix.service == 'be' && env.IMAGE_BE || env.IMAGE_FE }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ matrix.service == 'be' && env.IMAGE_BE || env.IMAGE_FE }}:buildcache
-          cache-to: type=registry,ref=${{ matrix.service == 'be' && env.IMAGE_BE || env.IMAGE_FE }}:buildcache,mode=max
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:latest
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:buildcache,mode=max
 
   deploy:
     name: Remote Deploy
@@ -110,6 +112,11 @@ jobs:
         run: |
           echo "${{ secrets.SERVER_SSH_KEY }}" > key.pem
           chmod 600 key.pem
+      - name: Compute lowercase owner
+        id: meta
+        run: |
+          owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
       - name: Deploy via SSH
         env:
           SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -122,17 +129,16 @@ jobs:
           if [ ! -d deploy ]; then
             mkdir deploy
           fi
-          # 写入或更新 docker-compose（若你改为 git clone，可删除此段）
-          cat > deploy/docker-compose.yml <<'COMPOSE'
+          cat > deploy/docker-compose.yml <<COMPOSE
           version: "3.9"
           services:
             echome-be:
-              image: ghcr.io/${{ github.repository_owner }}/echome-be:latest
+              image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-be:latest
               restart: unless-stopped
               ports:
                 - "8081:8081"
             echome-fe:
-              image: ghcr.io/${{ github.repository_owner }}/echome-fe:latest
+              image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-fe:latest
               restart: unless-stopped
               ports:
                 - "3000:3000"
