@@ -1,13 +1,14 @@
 # syntax=docker/dockerfile:1.7
 # --- Build stage ---
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24.7-alpine AS builder
 WORKDIR /app
 # Install build deps
 RUN apk add --no-cache git build-base bash
-# Pre-copy go.mod for caching
+# Pre-copy go.mod and go.sum (if exists) for caching
 COPY go.mod ./
-# Tidy (in case) and download modules
-RUN go mod download
+COPY go.sum ./
+# Generate go.sum if missing and download modules
+RUN if [ ! -f go.sum ]; then go mod tidy; fi && go mod download
 # Copy source
 COPY . .
 # Generate swagger docs if swag is present (ignore failure)

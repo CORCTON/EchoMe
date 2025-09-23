@@ -27,6 +27,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # 拷贝项目文件
 COPY . .
 
+# 确保 public 目录存在
+RUN mkdir -p public
+
 # 构建时禁用 Next.js 遥测
 # ENV NEXT_TELEMETRY_DISABLED=1
 
