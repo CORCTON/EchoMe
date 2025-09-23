@@ -134,8 +134,8 @@ jobs:
           if ! command -v docker >/dev/null 2>&1; then
             echo "Docker not found. Installing via repository script...";
             TMP_SCRIPT=/tmp/install_docker.sh
-            (curl -fsSL https://raw.githubusercontent.com/corcton/EchoMe/main/deploy/install_docker_cn.sh -o $TMP_SCRIPT || \
-             curl -fsSL https://raw.githubusercontent.com/corcton/EchoMe/main/deploy/install_docker.sh -o $TMP_SCRIPT) || { echo 'Download install script failed'; exit 2; }
+            (curl -fsSL https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker-china.sh -o $TMP_SCRIPT || \
+             curl -fsSL https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker.sh -o $TMP_SCRIPT) || { echo 'Download install script failed'; exit 2; }
             chmod +x $TMP_SCRIPT
             sudo bash $TMP_SCRIPT || { echo 'Docker install failed'; exit 3; }
             echo "Docker installation executed.";
