@@ -9,7 +9,6 @@
 
 # Dependency directories
 vendor/
-go.sum
 
 # Build directories
 build/
