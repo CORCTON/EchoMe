@@ -1,10 +1,15 @@
-#!/usr/bin/env bash
-set -euo pipefail
-# 安装 Docker & docker compose plugin (Ubuntu/Debian)
-if ! command -v docker >/dev/null 2>&1; then
-  echo "Installing Docker..."
-  curl -fsSL https://get.docker.com | sh
-fi
-sudo usermod -aG docker "$USER" || true
-mkdir -p /opt/echome
-echo "Docker installed. You may need to re-login for group changes."
+sudo apt-get update
+sudo apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+   $(lsb_release -cs) \
+   stable"
+sudo apt-get update
+sudo apt-get install -y docker-ce
+sudo curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
