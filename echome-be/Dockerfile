@@ -10,23 +10,8 @@ WORKDIR /app
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
-# 以非root用户身份执行构建操作
-RUN addgroup -g 1000 -S appgroup && \
-    adduser -u 1000 -S appuser -G appgroup
-
-# 变更工作目录所有者，避免以非 root 用户构建时写入 /app 权限被拒绝
-RUN chown appuser:appgroup /app
-
-# 确保 Go module cache 目录权限正确
-RUN mkdir -p /go/pkg/mod && chown -R appuser:appgroup /go
-
-# 安装构建依赖
-RUN apk add --no-cache git build-base
-
-# 先复制依赖文件以充分利用Docker缓存机制
-COPY --chown=appuser:appgroup go.mod go.sum* ./
-
-# 下载并验证依赖
+# 复制依赖文件
+COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download && go mod verify
 
