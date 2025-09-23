@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "8081:8081"
+    volumes:
+      - ./config:/app/config:ro
     networks:
       - echome-net
 

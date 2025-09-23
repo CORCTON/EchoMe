@@ -163,16 +163,23 @@ jobs:
           services:
             echome-be:
               image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-be:latest
+              container_name: echome-be
               restart: unless-stopped
               ports:
                 - "8081:8081"
+              volumes:
+                - ./config:/app/config:ro
             echome-fe:
               image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-fe:latest
+              container_name: echome-fe
               restart: unless-stopped
               ports:
                 - "3000:3000"
               depends_on:
                 - echome-be
+          networks:
+            default:
+              driver: bridge
           COMPOSE
           if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USERNAME" ]; then
             echo "使用账号 $GHCR_USERNAME 登录 ghcr.io"
