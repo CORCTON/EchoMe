@@ -111,6 +111,11 @@ jobs:
       - name: Prepare SSH password auth
         run: |
           sudo apt-get update -y && sudo apt-get install -y sshpass
+      - name: Compute lowercase owner
+        id: meta
+        run: |
+          owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
       - name: Deploy via SSH
         env:
           SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -123,6 +128,18 @@ jobs:
           cd /opt/echome
           if [ ! -d deploy ]; then
             mkdir deploy
+          fi
+          # 始终使用仓库脚本安装（或重新安装）Docker（简化逻辑，不做检测）
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker not found. Installing via repository script...";
+            TMP_SCRIPT=/tmp/install_docker.sh
+            (curl -fsSL https://raw.githubusercontent.com/corcton/EchoMe/main/deploy/install_docker_cn.sh -o $TMP_SCRIPT || \
+             curl -fsSL https://raw.githubusercontent.com/corcton/EchoMe/main/deploy/install_docker.sh -o $TMP_SCRIPT) || { echo 'Download install script failed'; exit 2; }
+            chmod +x $TMP_SCRIPT
+            sudo bash $TMP_SCRIPT || { echo 'Docker install failed'; exit 3; }
+            echo "Docker installation executed.";
+          else
+            echo "Docker already installed on remote host, skipping installation.";
           fi
           cat > deploy/docker-compose.yml <<COMPOSE
           version: "3.9"
@@ -141,8 +158,8 @@ jobs:
                 - echome-be
           COMPOSE
           echo "Pulling latest images..."
-          sudo docker compose -f deploy/docker-compose.yml pull || sudo docker-compose -f deploy/docker-compose.yml pull
+          sudo docker compose -f deploy/docker-compose.yml pull
           echo "Recreating containers..."
-          sudo docker compose -f deploy/docker-compose.yml up -d || sudo docker-compose -f deploy/docker-compose.yml up -d
+          sudo docker compose -f deploy/docker-compose.yml up -d
           sudo docker image prune -f || true
           EOF
