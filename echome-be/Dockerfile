@@ -19,6 +19,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 
 
+# 若 config.yaml 未被预先生成，则用 example 作为兜底（不包含密钥）
+RUN if [ ! -f config/etc/config.yaml ] && [ -f config/etc/config.yaml.example ]; then \
+            cp config/etc/config.yaml.example config/etc/config.yaml; \
+            echo "INFO: copied config/etc/config.yaml.example -> config/etc/config.yaml (no secrets)"; \
+        fi
+
 # 编译静态二进制
 RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
