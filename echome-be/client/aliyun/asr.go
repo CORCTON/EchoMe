@@ -2,6 +2,7 @@ package aliyun
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -80,6 +81,9 @@ func connectToModelStudioASR(apiKey string, config domain.ASRConfig) (*websocket
 		HandshakeTimeout: 30 * time.Second,
 		ReadBufferSize:   4096,
 		WriteBufferSize:  4096,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true, // 临时禁用验证
+		},
 	}
 
 	headers := http.Header{}

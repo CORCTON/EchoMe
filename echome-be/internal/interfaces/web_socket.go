@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
+	"github.com/justin/echome-be/internal/response"
 	"github.com/labstack/echo/v4"
 )
 
@@ -147,12 +149,12 @@ func (h *WebSocketHandlers) HandleTTSWebSocket(c echo.Context) error {
 func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 	sessionID, err := uuid.Parse(c.Param("sessionId"))
 	if err != nil {
-		return c.JSON(400, map[string]string{"error": "Invalid session ID"})
+		return response.BadRequest(c,"Invalid session ID")
 	}
 
 	userID := c.Param("userId")
 	if userID == "" {
-		return c.JSON(400, map[string]string{"error": "User ID is required"})
+		return response.BadRequest(c,"User ID is required")
 	}
 
 	// Upgrade HTTP connection to WebSocket
@@ -165,7 +167,7 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 	connection, err := h.webRTCService.CreatePeerConnection(sessionID, userID)
 	if err != nil {
 		ws.Close()
-		return c.JSON(500, map[string]string{"error": err.Error()})
+		return response.InternalError(c, "Failed to create WebRTC peer connection", err.Error())
 	}
 
 	// Store the WebSocket connection
@@ -226,13 +228,13 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 	sessionID, err := uuid.Parse(c.Param("sessionId"))
 	if err != nil {
 		log.Printf("Invalid session ID: %v", err)
-		return c.JSON(400, map[string]string{"error": "Invalid session ID"})
+		return response.BadRequest(c,"Invalid session ID")
 	}
 
 	characterID, err := uuid.Parse(c.Param("characterId"))
 	if err != nil {
 		log.Printf("Invalid character ID: %v", err)
-		return c.JSON(400, map[string]string{"error": "Invalid character ID"})
+		return response.BadRequest(c,"Invalid character ID")
 	}
 
 	// Parse query parameters
@@ -283,13 +285,42 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 
 // upgradeToWebSocket upgrades an HTTP connection to a WebSocket connection
 func upgradeToWebSocket(c echo.Context) (*websocket.Conn, error) {
+	// 配置 Upgrader
 	upgrader := websocket.Upgrader{
+		// 配置缓冲区大小，适合音频流
+		ReadBufferSize:  4096,
+		WriteBufferSize: 4096,
+		// 设置握手超时
+		HandshakeTimeout: 10 * time.Second,
+		// 允许所有来源的WebSocket连接，生产环境应该根据需要限制
 		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow any origin
+			return true
 		},
 	}
 
-	return upgrader.Upgrade(c.Response(), c.Request(), nil)
+	// 确保响应未提交
+	if c.Response().Committed {
+		return nil, fmt.Errorf("响应已提交，无法升级到WebSocket")
+	}
+
+	// 升级连接
+	conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+	if err != nil {
+		log.Printf("WebSocket升级失败: %v", err)
+		return nil, fmt.Errorf("WebSocket升级失败: %w", err)
+	}
+
+	// 支持上下文取消
+	go func() {
+		<-c.Request().Context().Done()
+		// 优雅关闭WebSocket连接，发送关闭帧
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		// 给对方一些时间处理关闭帧
+		time.Sleep(500 * time.Millisecond)
+		conn.Close()
+	}()
+
+	return conn, nil
 }
 
 // parseIntParam parses an integer parameter from string
