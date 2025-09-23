@@ -3,6 +3,7 @@ package interfaces
 import (
 	"github.com/google/uuid"
 	"github.com/justin/echome-be/internal/domain"
+	"github.com/justin/echome-be/internal/response"
 	"github.com/labstack/echo/v4"
 )
 
@@ -33,12 +34,12 @@ func (h *CharacterHandlers) RegisterRoutes(e *echo.Echo) {
 // @Success 200 {array} domain.Character
 // @Router /characters [get]
 func (h *CharacterHandlers) GetCharacters(c echo.Context) error {
-	characters, err := h.characterService.GetCharacterByID(uuid.Nil)
+	characters, err := h.characterService.GetAllCharacters()
 	if err != nil {
-		return c.JSON(500, map[string]string{"error": err.Error()})
+		return response.InternalError(c, "Failed to get characters", err.Error())
 	}
 
-	return c.JSON(200, characters)
+	return response.Success(c, characters)
 }
 
 // SearchCharacters handles GET /api/characters/search
@@ -55,10 +56,10 @@ func (h *CharacterHandlers) SearchCharacters(c echo.Context) error {
 	query := c.QueryParam("q")
 	characters, err := h.characterService.SearchCharacters(query)
 	if err != nil {
-		return c.JSON(500, map[string]string{"error": err.Error()})
+		return response.InternalError(c, "Failed to search characters", err.Error())
 	}
 
-	return c.JSON(200, characters)
+	return response.Success(c, characters)
 }
 
 // GetCharacterByID handles GET /api/characters/:id
@@ -73,15 +74,15 @@ func (h *CharacterHandlers) SearchCharacters(c echo.Context) error {
 func (h *CharacterHandlers) GetCharacterByID(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		return c.JSON(400, map[string]string{"error": "Invalid character ID"})
+		return response.BadRequest(c, "Invalid character ID", err.Error())
 	}
 
 	character, err := h.characterService.GetCharacterByID(id)
 	if err != nil {
-		return c.JSON(404, map[string]string{"error": "Character not found"})
+		return response.NotFound(c, "Character not found", err.Error())
 	}
 
-	return c.JSON(200, character)
+	return response.Success(c, character)
 }
 
 // CreateCharacter handles POST /api/characters
@@ -98,12 +99,12 @@ func (h *CharacterHandlers) GetCharacterByID(c echo.Context) error {
 func (h *CharacterHandlers) CreateCharacter(c echo.Context) error {
 	var character domain.Character
 	if err := c.Bind(&character); err != nil {
-		return c.JSON(400, map[string]string{"error": err.Error()})
+		return response.BadRequest(c, "Invalid character data", err.Error())
 	}
 
 	if err := h.characterService.CreateCharacter(&character); err != nil {
-		return c.JSON(500, map[string]string{"error": err.Error()})
+		return response.InternalError(c, "Failed to create character", err.Error())
 	}
 
-	return c.JSON(201, character)
+	return response.Created(c, character)
 }

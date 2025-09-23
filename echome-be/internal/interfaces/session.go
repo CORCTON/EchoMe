@@ -2,8 +2,9 @@ package interfaces
 
 import (
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 	"github.com/justin/echome-be/internal/domain"
+	"github.com/justin/echome-be/internal/response"
+	"github.com/labstack/echo/v4"
 )
 
 // SessionHandlers handles session-related HTTP requests
@@ -45,15 +46,15 @@ func (h *SessionHandlers) CreateSession(c echo.Context) error {
 	}
 
 	if err := c.Bind(&request); err != nil {
-		return c.JSON(400, map[string]string{"error": err.Error()})
+		return response.BadRequest(c, "Invalid session data", err.Error())
 	}
 
 	session, err := h.sessionService.CreateSession(request.UserID, request.CharacterID)
 	if err != nil {
-		return c.JSON(500, map[string]string{"error": err.Error()})
+		return response.InternalError(c, "Failed to create session", err.Error())
 	}
 
-	return c.JSON(201, session)
+	return response.Created(c, session)
 }
 
 // GetUserSessions handles GET /api/sessions
@@ -68,12 +69,16 @@ func (h *SessionHandlers) CreateSession(c echo.Context) error {
 // @Router /api/sessions [get]
 func (h *SessionHandlers) GetUserSessions(c echo.Context) error {
 	userID := c.QueryParam("userId")
-	sessions, err := h.sessionService.GetUserSessions(userID)
-	if err != nil {
-		return c.JSON(500, map[string]string{"error": err.Error()})
+	if userID == "" {
+		return response.BadRequest(c, "User ID is required")
 	}
 
-	return c.JSON(200, sessions)
+	sessions, err := h.sessionService.GetUserSessions(userID)
+	if err != nil {
+		return response.InternalError(c, "Failed to get user sessions", err.Error())
+	}
+
+	return response.Success(c, sessions)
 }
 
 // GetSessionByID handles GET /api/sessions/:id
@@ -90,15 +95,15 @@ func (h *SessionHandlers) GetUserSessions(c echo.Context) error {
 func (h *SessionHandlers) GetSessionByID(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		return c.JSON(400, map[string]string{"error": "Invalid session ID"})
+		return response.BadRequest(c, "Invalid session ID", err.Error())
 	}
 
 	session, err := h.sessionService.GetSessionByID(id)
 	if err != nil {
-		return c.JSON(404, map[string]string{"error": "Session not found"})
+		return response.NotFound(c, "Session not found", err.Error())
 	}
 
-	return c.JSON(200, session)
+	return response.Success(c, session)
 }
 
 // GetSessionMessages handles GET /api/sessions/:id/messages
@@ -115,15 +120,15 @@ func (h *SessionHandlers) GetSessionByID(c echo.Context) error {
 func (h *SessionHandlers) GetSessionMessages(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		return c.JSON(400, map[string]string{"error": "Invalid session ID"})
+		return response.BadRequest(c, "Invalid session ID", err.Error())
 	}
 
 	messages, err := h.sessionService.GetSessionMessages(id)
 	if err != nil {
-		return c.JSON(500, map[string]string{"error": err.Error()})
+		return response.InternalError(c, "Failed to get session messages", err.Error())
 	}
 
-	return c.JSON(200, messages)
+	return response.Success(c, messages)
 }
 
 // SendMessage handles POST /api/sessions/:id/messages
@@ -141,7 +146,7 @@ func (h *SessionHandlers) GetSessionMessages(c echo.Context) error {
 func (h *SessionHandlers) SendMessage(c echo.Context) error {
 	sessionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		return c.JSON(400, map[string]string{"error": "Invalid session ID"})
+		return response.BadRequest(c, "Invalid session ID", err.Error())
 	}
 
 	var request struct {
@@ -150,13 +155,17 @@ func (h *SessionHandlers) SendMessage(c echo.Context) error {
 	}
 
 	if err := c.Bind(&request); err != nil {
-		return c.JSON(400, map[string]string{"error": err.Error()})
+		return response.BadRequest(c, "Invalid message data", err.Error())
+	}
+
+	if request.Content == "" {
+		return response.BadRequest(c, "Message content is required")
 	}
 
 	message, err := h.sessionService.SendMessage(sessionID, request.Content, request.Sender)
 	if err != nil {
-		return c.JSON(500, map[string]string{"error": err.Error()})
+		return response.InternalError(c, "Failed to send message", err.Error())
 	}
 
-	return c.JSON(201, message)
+	return response.Created(c, message)
 }

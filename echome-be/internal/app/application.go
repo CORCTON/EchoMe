@@ -11,8 +11,11 @@ import (
 
 	"github.com/justin/echome-be/config"
 	"github.com/justin/echome-be/internal/interfaces"
+	"github.com/justin/echome-be/internal/middleware"
+	"github.com/justin/echome-be/internal/response"
+	"github.com/justin/echome-be/internal/validation"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	echoSwagger "github.com/swaggo/echo-swagger"
 	"golang.org/x/sync/errgroup"
 
@@ -22,9 +25,10 @@ import (
 
 // Application represents the main application
 type Application struct {
-	config  *config.Config
-	handler *interfaces.Handlers
-	echo    *echo.Echo
+	config    *config.Config
+	handler   *interfaces.Handlers
+	echo      *echo.Echo
+	validator *validation.ConfigValidator
 }
 
 // NewApplication creates a new application
@@ -32,9 +36,13 @@ func NewApplication(config *config.Config, handler *interfaces.Handlers) *Applic
 	e := echo.New()
 
 	// Middleware
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
+	e.Use(echomiddleware.Logger())
+	e.Use(echomiddleware.Recover())
+	e.Use(echomiddleware.CORS())
+	e.Use(middleware.MetricsMiddleware())
+
+	// 添加请求限制中间件
+	e.Use(echomiddleware.RateLimiter(echomiddleware.NewRateLimiterMemoryStore(20)))
 
 	// Register routes
 	handler.RegisterRoutes(e)
@@ -43,9 +51,10 @@ func NewApplication(config *config.Config, handler *interfaces.Handlers) *Applic
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	app := &Application{
-		config:  config,
-		handler: handler,
-		echo:    e,
+		config:    config,
+		handler:   handler,
+		echo:      e,
+		validator: validation.NewConfigValidator(),
 	}
 
 	// Health check endpoint (registered after app creation)
@@ -116,49 +125,25 @@ func (a *Application) validateConfiguration() error {
 		return fmt.Errorf("configuration is nil")
 	}
 
-	// Validate server configuration
-	if a.config.Server.Port == "" {
-		return fmt.Errorf("server port is not configured")
-	}
-
-	// Validate AI service configuration
-	if a.config.AI.ServiceType == "" {
-		return fmt.Errorf("AI service type is not configured")
-	}
-
-	// Validate AI service specific configuration
-	switch a.config.AI.ServiceType {
-	case "alibailian":
-		// 统一使用 APIKey 作为唯一密钥来源
-		if a.config.APIKey == "" {
-			return fmt.Errorf("aliyun API key is required for alibailian service")
-		}
-	default:
-		return fmt.Errorf("unsupported AI service type: %s", a.config.AI.ServiceType)
-	}
-
-	// Validate Aliyun configuration if present
-	if a.config.APIKey != "" {
-		if a.config.Endpoint == "" {
-			return fmt.Errorf("aliyun endpoint is required when API key is provided")
-		}
-		if a.config.Region == "" {
-			return fmt.Errorf("aliyun region is required when API key is provided")
-		}
-	}
-
-	return nil
+	// 使用专门的配置验证器
+	return a.validator.ValidateConfig(a.config)
 }
 
 // healthCheckHandler provides a health check endpoint
 func (a *Application) healthCheckHandler(c echo.Context) error {
-	status := map[string]any{
-		"status": "healthy",
-		"services": map[string]string{
-			"server":     "running",
-			"ai_service": a.config.AI.ServiceType,
-			"websockets": "available",
-		},
+	// 检查各个服务的健康状态
+	healthStatus := "healthy"
+	services := map[string]string{
+		"server":     "running",
+		"ai_service": a.config.AI.ServiceType,
+		"websockets": "available",
+	}
+
+	healthData := map[string]any{
+		"status":    healthStatus,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"version":   "1.0.0", // 可以从配置或构建信息中获取
+		"services":  services,
 		"endpoints": map[string][]string{
 			"websocket": {
 				"/ws/asr",
@@ -173,7 +158,7 @@ func (a *Application) healthCheckHandler(c echo.Context) error {
 		},
 	}
 
-	return c.JSON(200, status)
+	return response.Success(c, healthData)
 }
 
 // GetEcho returns the Echo instance for testing
@@ -210,7 +195,7 @@ func (a *Application) Run() error {
 			// Create a deadline to wait for
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			
+
 			log.Println("📴 Shutting down server...")
 			if err := server.Shutdown(shutdownCtx); err != nil {
 				log.Printf("Error during server shutdown: %v", err)

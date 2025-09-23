@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/justin/echome-be/internal/domain"
@@ -14,8 +15,9 @@ import (
 
 // AliClient encapsulates the client for Aliyun API
 type AliClient struct {
-	apiKey   string
-	endPoint string
+	apiKey     string
+	endPoint   string
+	httpClient *http.Client
 }
 
 // RecognizeAudio implements domain.AIService.
@@ -32,7 +34,18 @@ func (client *AliClient) SynthesizeSpeech(ctx context.Context, text string, conf
 var _ domain.AIService = (*AliClient)(nil)
 
 func NewAliClient(apiKey string, endpoint string) *AliClient {
-	return &AliClient{apiKey: apiKey, endPoint: endpoint}
+	return &AliClient{
+		apiKey:   apiKey,
+		endPoint: endpoint,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     90 * time.Second,
+			},
+		},
+	}
 }
 
 // BailianRequest 阿里云百炼API请求结构
@@ -74,6 +87,19 @@ type BailianErrorResponse struct {
 }
 
 func (client *AliClient) GenerateResponse(ctx context.Context, userInput string, characterContext string) (string, error) {
+	// 输入验证
+	if strings.TrimSpace(userInput) == "" {
+		return "", fmt.Errorf("user input cannot be empty")
+	}
+
+	// 输入长度限制
+	if len(userInput) > 4000 {
+		return "", fmt.Errorf("user input too long (max 4000 characters)")
+	}
+
+	// 添加超时控制
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	// 构建消息列表，支持角色上下文
 	messages := []BailianMessage{}
 
@@ -122,11 +148,8 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// 发送请求
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-	resp, err := httpClient.Do(req)
+	// 发送请求（带重试机制）
+	resp, err := client.doRequestWithRetry(req, 3)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
@@ -159,4 +182,44 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	}
 
 	return response.Output.Text, nil
+}
+
+// doRequestWithRetry 执行HTTP请求并支持重试
+func (client *AliClient) doRequestWithRetry(req *http.Request, maxRetries int) (*http.Response, error) {
+	var lastErr error
+
+	for i := 0; i <= maxRetries; i++ {
+		// 克隆请求以支持重试（因为body可能被消费）
+		reqClone := req.Clone(req.Context())
+		if req.Body != nil {
+			// 重新设置body
+			if req.GetBody != nil {
+				body, err := req.GetBody()
+				if err != nil {
+					return nil, fmt.Errorf("failed to get request body: %w", err)
+				}
+				reqClone.Body = body
+			}
+		}
+
+		resp, err := client.httpClient.Do(reqClone)
+		if err == nil {
+			// 检查是否需要重试（5xx错误或429）
+			if resp.StatusCode < 500 && resp.StatusCode != 429 {
+				return resp, nil
+			}
+			resp.Body.Close()
+			lastErr = fmt.Errorf("server error: status %d", resp.StatusCode)
+		} else {
+			lastErr = err
+		}
+
+		// 如果不是最后一次重试，等待一段时间
+		if i < maxRetries {
+			backoff := time.Duration(i+1) * time.Second
+			time.Sleep(backoff)
+		}
+	}
+
+	return nil, fmt.Errorf("request failed after %d retries: %w", maxRetries, lastErr)
 }
