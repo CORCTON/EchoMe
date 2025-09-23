@@ -19,6 +19,9 @@ RUN addgroup -g 1000 -S appgroup && \
 # 变更工作目录所有者，避免以非 root 用户构建时写入 /app 权限被拒绝
 RUN chown appuser:appgroup /app
 
+# 确保 Go module cache 目录权限正确
+RUN mkdir -p /go/pkg/mod && chown -R appuser:appgroup /go
+
 # 安装构建依赖
 RUN apk add --no-cache git build-base
 
