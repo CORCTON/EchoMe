@@ -106,7 +106,8 @@ jobs:
     name: Remote Deploy
     needs: [build-push, changes]
     runs-on: ubuntu-latest
-    if: ${{ needs.changes.outputs.be == 'true' || needs.changes.outputs.fe == 'true' || github.event.inputs.force == 'true' }}
+    # Deploy when build-push succeeded or when forced. This prevents skipping deployment when images were built
+    if: ${{ needs.build-push.result == 'success' || github.event.inputs.force == 'true' }}
     steps:
       - name: Prepare SSH password auth
         run: |
