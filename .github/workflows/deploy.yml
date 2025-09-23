@@ -76,20 +76,6 @@ jobs:
       - name: 跳过提示
         if: steps.decide.outputs.skip == 'true'
         run: echo "当前服务无变更且未强制执行，跳过构建。"
-      - name: 生成后端配置并注入密钥
-        if: steps.decide.outputs.skip != 'true' && matrix.service == 'be'
-        env:
-          API_KEY: ${{ secrets.ALIBAILIAN_API_KEY }}
-        run: |
-          set -e
-          echo "正在从示例生成后端 config.yaml..."
-          cp echome-be/config/etc/config.yaml.example echome-be/config/etc/config.yaml
-          if [ -z "${API_KEY}" ]; then
-            echo "警告: 仓库机密 ALIBAILIAN_API_KEY 未设置，config.yaml 中将保留占位符。" >&2
-          else
-            sed -i "s/your-alibailian-api-key/${API_KEY}/" echome-be/config/etc/config.yaml
-            echo "API 密钥已写入 config.yaml"
-          fi
       - name: 设置 QEMU
         if: steps.decide.outputs.skip != 'true'
         uses: docker/setup-qemu-action@v3
@@ -138,7 +124,7 @@ jobs:
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          ALIBAILIAN_API_KEY: ${{ secrets.ALIBAILIAN_API_KEY }}
+          ALIYUN_API_KEY: ${{ secrets.ALIYUN_API_KEY }}
         run: |
           sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST <<EOF
           set -e
@@ -148,7 +134,7 @@ jobs:
             mkdir deploy
           fi
           # 生成环境变量文件，传递敏感配置
-          echo "ALIYUN_API_KEY=$ALIBAILIAN_API_KEY" > deploy/.env
+          echo "ALIYUN_API_KEY=$ALIYUN_API_KEY" > deploy/.env
           echo "已生成 deploy/.env 文件用于传递敏感配置"
           # 安装或重新安装 Docker（若未安装）
           if ! command -v docker >/dev/null 2>&1; then

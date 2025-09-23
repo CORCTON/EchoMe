@@ -24,14 +24,13 @@ func MustLoad[T any](path string) (*koanf.Koanf, *T) {
 
 func Load(path string) *Config {
 	_, c := MustLoad[Config](path)
-	
-	// 环境变量覆盖：优先从环境变量读取 API 密钥，避免敏感信息写入配置文件
+
+	// 统一使用 ALIYUN_API_KEY 作为环境变量来源
 	if apiKey := os.Getenv("ALIYUN_API_KEY"); apiKey != "" {
 		c.Aliyun.APIKey = apiKey
-	} else if apiKey := os.Getenv("ALIBAILIAN_API_KEY"); apiKey != "" {
-		c.Aliyun.APIKey = apiKey
+		c.ALBL.APIKey = apiKey // 同步给 ALBL 结构，避免上层判空失败
 	}
-	
+
 	return c
 }
 
