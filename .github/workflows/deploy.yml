@@ -177,7 +177,6 @@ jobs:
           fi
           # 使用 Traefik 作为反向代理并自动申请 Let's Encrypt 证书
           cat > deploy/docker-compose.yml <<'COMPOSE'
-          version: '3.8'
           services:
             traefik:
               image: traefik:v3.0
@@ -241,6 +240,36 @@ jobs:
           sudo mkdir -p deploy/letsencrypt
           sudo touch deploy/letsencrypt/acme.json
           sudo chmod 600 deploy/letsencrypt/acme.json
+          # 确保 Docker daemon 已启动并可用（重试等待），否则尝试启动
+          echo "检查 Docker daemon 状态并等待启动..."
+          if command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl enable docker || true
+            sudo systemctl restart docker || true
+          fi
+          # 等待 docker 可以正常响应
+          started=false
+          for i in $(seq 1 30); do
+            if sudo docker info >/dev/null 2>&1; then
+              started=true
+              break
+            fi
+            echo "等待 docker 启动... ($i/30)";
+            sleep 2
+          done
+          if [ "$started" = "false" ]; then
+            echo "Docker daemon 未响应，尝试以后台方式启动 dockerd..."
+            if command -v dockerd >/dev/null 2>&1; then
+              sudo dockerd --host=unix:///var/run/docker.sock > /tmp/dockerd.log 2>&1 &
+              sleep 3
+            fi
+          fi
+          # 最后再检测一次
+          if ! sudo docker info >/dev/null 2>&1; then
+            echo "ERROR: Docker daemon 无法连接，部署中止。请在服务器上检查 /var/run/docker.sock 与 docker 服务状态。" >&2
+            sudo journalctl -u docker -n 200 || true
+            [ -f /tmp/dockerd.log ] && sudo tail -n 200 /tmp/dockerd.log || true
+            exit 5
+          fi
           echo "拉取最新镜像..."
           sudo docker compose -f deploy/docker-compose.yml pull
           echo "重新创建并启动容器..."
