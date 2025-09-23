@@ -171,10 +171,16 @@ jobs:
           # 尝试重启 Docker 服务以使配置生效（在某些系统上需要 systemctl）
           if command -v systemctl >/dev/null 2>&1; then
             sudo systemctl restart docker || true
+            # 等待 Docker 重启完成
+            sleep 5
           else
             # 若不是 systemd，尝试使用 service 命令
             sudo service docker restart || true
+            sleep 5
           fi
+          # 验证镜像加速配置是否生效
+          echo "验证 Docker 镜像加速配置..."
+          sudo docker info | grep -A5 "Registry Mirrors" || echo "未检测到镜像加速配置"
           # 使用 Traefik 作为反向代理并自动申请 Let's Encrypt 证书
           cat > deploy/docker-compose.yml <<'COMPOSE'
           services:
@@ -271,6 +277,11 @@ jobs:
             exit 5
           fi
           echo "拉取最新镜像..."
+          # 在拉取前再次确认 Docker 可用且配置生效
+          if ! sudo docker info >/dev/null 2>&1; then
+            echo "ERROR: Docker daemon 在重启后仍不可用" >&2
+            exit 7
+          fi
           sudo docker compose -f deploy/docker-compose.yml pull
           echo "重新创建并启动容器..."
           sudo docker compose -f deploy/docker-compose.yml up -d
