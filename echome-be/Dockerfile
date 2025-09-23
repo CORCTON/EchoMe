@@ -1,61 +1,44 @@
-### 全局参数定义
+# 全局参数
 ARG GO_VERSION=1.24.3
-ARG ALPINE_VERSION=3.20
-ARG APP_NAME=echome-api
+ARG APP_NAME=echome-be
 ARG APP_PORT=8081
 
-### 构建阶段
-FROM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
+# 构建阶段
+FROM golang:${GO_VERSION}-alpine AS builder
 
-### 构建环境配置
 WORKDIR /app
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
 
-# 以非root用户身份执行构建操作
-RUN addgroup -g 1000 -S appgroup && \
-    adduser -u 1000 -S appuser -G appgroup
-
-# 变更工作目录所有者，避免以非 root 用户构建时写入 /app 权限被拒绝
-RUN chown appuser:appgroup /app
-
-# 安装构建依赖
-RUN apk add --no-cache git build-base
-
-# 先复制依赖文件以充分利用Docker缓存机制
-COPY --chown=appuser:appgroup go.mod go.sum* ./
-
-# 下载并验证依赖
+# 复制依赖文件
+COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
-    if [ -f go.sum ]; then go mod download; else go mod init ${APP_NAME} && go mod download; fi
+    go mod download && go mod verify
 
 # 复制源代码
-COPY --chown=appuser:appgroup . .
+COPY . .
 
-# 切换到非root用户
-USER appuser
 
-# 构建静态链接的二进制文件
+# 编译静态二进制
 RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -a -installsuffix cgo \
+    go build -v -a -installsuffix cgo \
     -ldflags="-s -w" \
     -o ${APP_NAME} ./cmd/api
 
-### 运行时阶段
-FROM gcr.io/distroless/static-debian12:nonroot
+# 运行时阶段
+FROM scratch
 
-### 运行时环境配置
 WORKDIR /app
 ARG APP_NAME
 ARG APP_PORT
 ENV APP_NAME=${APP_NAME}
 EXPOSE ${APP_PORT}
 
-# 从构建阶段复制二进制文件和配置
-COPY --from=builder --chown=nonroot:nonroot /app/${APP_NAME} .
-COPY --from=builder --chown=nonroot:nonroot /app/config/etc ./config/etc
+# 复制二进制和配置文件
+COPY --from=builder /app/${APP_NAME} .
+COPY --from=builder /app/config/etc ./config/etc
 
-# 定义入口点和命令
-ENTRYPOINT ["./echome-api"]
+# 入口点和默认命令
+ENTRYPOINT ["./echome-be"]
 CMD ["-f", "config/etc/config.yaml"]
