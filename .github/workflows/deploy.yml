@@ -138,6 +138,7 @@ jobs:
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          ALIBAILIAN_API_KEY: ${{ secrets.ALIBAILIAN_API_KEY }}
         run: |
           sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST <<EOF
           set -e
@@ -146,6 +147,9 @@ jobs:
           if [ ! -d deploy ]; then
             mkdir deploy
           fi
+          # 生成环境变量文件，传递敏感配置
+          echo "ALIYUN_API_KEY=$ALIBAILIAN_API_KEY" > deploy/.env
+          echo "已生成 deploy/.env 文件用于传递敏感配置"
           # 安装或重新安装 Docker（若未安装）
           if ! command -v docker >/dev/null 2>&1; then
             echo "未检测到 Docker，开始执行安装脚本...";
@@ -158,8 +162,7 @@ jobs:
           else
             echo "远程主机已安装 Docker，跳过安装步骤。";
           fi
-          cat > deploy/docker-compose.yml <<COMPOSE
-          version: "3.9"
+          cat > deploy/docker-compose.yml <<'COMPOSE'
           services:
             echome-be:
               image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-be:latest
@@ -167,8 +170,8 @@ jobs:
               restart: unless-stopped
               ports:
                 - "8081:8081"
-              volumes:
-                - ./config:/app/config:ro
+              env_file:
+                - .env
             echome-fe:
               image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-fe:latest
               container_name: echome-fe
