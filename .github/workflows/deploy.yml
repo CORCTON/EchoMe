@@ -122,8 +122,10 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST: ${{ env.SERVER_HOST }}
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST <<'EOF'
+          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST <<EOF
           set -e
           sudo mkdir -p /opt/echome
           cd /opt/echome
@@ -158,6 +160,12 @@ jobs:
               depends_on:
                 - echome-be
           COMPOSE
+          if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USERNAME" ]; then
+            echo "Logging in to ghcr.io as $GHCR_USERNAME"
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin || { echo 'Docker login failed'; exit 4; }
+          else
+            echo "GHCR credentials not provided; will attempt anonymous pull (likely to fail for private images)."
+          fi
           echo "Pulling latest images..."
           sudo docker compose -f deploy/docker-compose.yml pull
           echo "Recreating containers..."
