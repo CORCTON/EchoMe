@@ -122,9 +122,6 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST: ${{ env.SERVER_HOST }}
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          # 用于 TLS / Traefik 配置（与 SSH 登录 IP 区分）
-          SERVER_DOMAIN: ${{ secrets.SERVER_DOMAIN }}
-          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           ALIYUN_API_KEY: ${{ secrets.ALIYUN_API_KEY }}
@@ -138,13 +135,6 @@ jobs:
           fi
           # 生成环境变量文件，传递敏感配置
           echo "ALIYUN_API_KEY=$ALIYUN_API_KEY" > deploy/.env
-          # 写入域名与 Let's Encrypt 邮箱（注意：SERVER_HOST 用于 SSH/IP，SERVER_DOMAIN 用于域名）
-          echo "SERVER_DOMAIN=$SERVER_DOMAIN" >> deploy/.env
-          if [ -n "$LETSENCRYPT_EMAIL" ]; then
-            echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> deploy/.env
-          else
-            echo "LETSENCRYPT_EMAIL=admin@$SERVER_DOMAIN" >> deploy/.env
-          fi
           echo "已生成 deploy/.env 文件用于传递敏感配置"
           # 安装或重新安装 Docker（若未安装）
           if ! command -v docker >/dev/null 2>&1; then
@@ -158,80 +148,24 @@ jobs:
           else
             echo "远程主机已安装 Docker，跳过安装步骤。";
           fi
-          # 配置 Docker registry mirror（加速镜像拉取），使用可替换的加速地址
-          MIRROR_URL="https://docker.1panel.live"
-          echo "配置 Docker registry mirror: $MIRROR_URL"
-          if [ -f /etc/docker/daemon.json ]; then
-            sudo jq --arg m "$MIRROR_URL" '. + {"registry-mirrors": [$m]}' /etc/docker/daemon.json > /tmp/daemon.json.tmp || \
-              sudo cp /etc/docker/daemon.json /tmp/daemon.json.tmp
-            sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
-          else
-            echo "{\"registry-mirrors\": [\"$MIRROR_URL\"]}" | sudo tee /etc/docker/daemon.json > /dev/null
-          fi
-          # 尝试重启 Docker 服务以使配置生效（在某些系统上需要 systemctl）
-          if command -v systemctl >/dev/null 2>&1; then
-            sudo systemctl restart docker || true
-            # 等待 Docker 重启完成
-            sleep 5
-          else
-            # 若不是 systemd，尝试使用 service 命令
-            sudo service docker restart || true
-            sleep 5
-          fi
-          # 验证镜像加速配置是否生效
-          echo "验证 Docker 镜像加速配置..."
-          sudo docker info | grep -A5 "Registry Mirrors" || echo "未检测到镜像加速配置"
-          # 使用 Traefik 作为反向代理并自动申请 Let's Encrypt 证书
           cat > deploy/docker-compose.yml <<'COMPOSE'
           services:
-            traefik:
-              image: traefik:v3.0
-              container_name: traefik
-              restart: unless-stopped
-              command:
-                - --entrypoints.web.address=:80
-                - --entrypoints.websecure.address=:443
-                - --providers.docker=true
-                - --providers.docker.exposedbydefault=false
-                - --certificatesresolvers.le.acme.tlschallenge=true
-                - --certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}
-                - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-              ports:
-                - "80:80"
-                - "443:443"
-              volumes:
-                - ./letsencrypt:/letsencrypt
-                - /var/run/docker.sock:/var/run/docker.sock:ro
-              env_file:
-                - .env
-
             echome-be:
               image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-be:latest
               container_name: echome-be
               restart: unless-stopped
-              labels:
-                - "traefik.enable=true"
-                - "traefik.http.routers.echome-be.rule=Host(`api.${SERVER_DOMAIN}`)"
-                - "traefik.http.routers.echome-be.entrypoints=websecure"
-                - "traefik.http.routers.echome-be.tls.certresolver=le"
+              ports:
+                - "8081:8081"
               env_file:
                 - .env
-
             echome-fe:
               image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-fe:latest
               container_name: echome-fe
               restart: unless-stopped
-              labels:
-                - "traefik.enable=true"
-                - "traefik.http.routers.echome-fe.rule=Host(`www.${SERVER_DOMAIN}`) || Host(`${SERVER_DOMAIN}`)"
-                - "traefik.http.routers.echome-fe.entrypoints=websecure"
-                - "traefik.http.routers.echome-fe.tls.certresolver=le"
+              ports:
+                - "3000:3000"
               depends_on:
                 - echome-be
-          volumes:
-            letsencrypt:
-              driver: local
-
           networks:
             default:
               driver: bridge
@@ -242,46 +176,7 @@ jobs:
           else
             echo "未提供 GHCR 凭据，将尝试匿名拉取（私有镜像可能失败）。"
           fi
-          # 确保 letsencrypt 目录和 acme.json 存在且权限正确
-          sudo mkdir -p deploy/letsencrypt
-          sudo touch deploy/letsencrypt/acme.json
-          sudo chmod 600 deploy/letsencrypt/acme.json
-          # 确保 Docker daemon 已启动并可用（重试等待），否则尝试启动
-          echo "检查 Docker daemon 状态并等待启动..."
-          if command -v systemctl >/dev/null 2>&1; then
-            sudo systemctl enable docker || true
-            sudo systemctl restart docker || true
-          fi
-          # 等待 docker 可以正常响应
-          started=false
-          for i in \$(seq 1 30); do
-            if sudo docker info >/dev/null 2>&1; then
-              started=true
-              break
-            fi
-            echo "等待 docker 启动... (\$i/30)";
-            sleep 2
-          done
-          if [ "$started" = "false" ]; then
-            echo "Docker daemon 未响应，尝试以后台方式启动 dockerd..."
-            if command -v dockerd >/dev/null 2>&1; then
-              sudo dockerd --host=unix:///var/run/docker.sock > /tmp/dockerd.log 2>&1 &
-              sleep 3
-            fi
-          fi
-          # 最后再检测一次
-          if ! sudo docker info >/dev/null 2>&1; then
-            echo "ERROR: Docker daemon 无法连接，部署中止。请在服务器上检查 /var/run/docker.sock 与 docker 服务状态。" >&2
-            sudo journalctl -u docker -n 200 || true
-            [ -f /tmp/dockerd.log ] && sudo tail -n 200 /tmp/dockerd.log || true
-            exit 5
-          fi
           echo "拉取最新镜像..."
-          # 在拉取前再次确认 Docker 可用且配置生效
-          if ! sudo docker info >/dev/null 2>&1; then
-            echo "ERROR: Docker daemon 在重启后仍不可用" >&2
-            exit 7
-          fi
           sudo docker compose -f deploy/docker-compose.yml pull
           echo "重新创建并启动容器..."
           sudo docker compose -f deploy/docker-compose.yml up -d

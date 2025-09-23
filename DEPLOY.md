@@ -23,7 +23,12 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/<your-repo>/main/deploy/
 chmod +x deploy/install_docker.sh && ./deploy/install_docker.sh
 ```
 确保已为用户添加 docker 组（可能需要重新登录）。
+
+### 中国大陆环境（推荐使用加速镜像脚本）
+如果服务器在中国大陆，官方脚本可能较慢，可使用镜像优化版本：
+```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/<your-repo>/main/deploy/install_docker_cn.sh)"
+```
 或本地执行：
 ```bash
 chmod +x deploy/install_docker_cn.sh && ./deploy/install_docker_cn.sh
@@ -31,6 +36,7 @@ chmod +x deploy/install_docker_cn.sh && ./deploy/install_docker_cn.sh
 可通过设置变量指定 docker-compose 版本：
 ```bash
 COMPOSE_VERSION=2.27.1 bash deploy/install_docker_cn.sh
+```
 
 ## GitHub Secrets 配置
 在仓库 Settings -> Secrets and variables -> Actions 中添加：
@@ -55,6 +61,8 @@ COMPOSE_VERSION=2.27.1 bash deploy/install_docker_cn.sh
 with:
   tags: ghcr.io/<OWNER>/echome-be:latest,ghcr.io/<OWNER>/echome-be:${{ github.sha }}
 ```
+
+## 手动 SSH 部署调试
 ```bash
 ssh -i key.pem $SERVER_USER@115.190.101.38
 cd /opt/echome
