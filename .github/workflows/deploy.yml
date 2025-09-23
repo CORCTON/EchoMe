@@ -1,4 +1,4 @@
-name: CI Build & Deploy
+name: CI 构建与部署
 
 on:
   push:
@@ -31,7 +31,7 @@ env:
 
 jobs:
   changes:
-    name: Detect Changes
+    name: 变更检测
     runs-on: ubuntu-latest
     outputs:
       be: ${{ steps.filter.outputs.be }}
@@ -49,7 +49,7 @@ jobs:
               - 'echome-fe/**'
 
   build-push:
-    name: Build & Push Images
+    name: 构建并推送镜像
     needs: changes
     runs-on: ubuntu-latest
     strategy:
@@ -58,12 +58,12 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      - name: Compute lowercase owner
+      - name: 计算仓库拥有者小写形式
         id: meta
         run: |
           owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
           echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
-      - name: Decide skip
+      - name: 判断是否跳过当前服务
         id: decide
         run: |
           svc=${{ matrix.service }}
@@ -73,23 +73,37 @@ jobs:
           echo "service=$svc force=$force be=$be_changed fe=$fe_changed"
           if [ "$svc" = "be" ] && [ "$be_changed" != "true" ] && [ "$force" != "true" ]; then echo "skip=true" >> $GITHUB_OUTPUT; fi
           if [ "$svc" = "fe" ] && [ "$fe_changed" != "true" ] && [ "$force" != "true" ]; then echo "skip=true" >> $GITHUB_OUTPUT; fi
-      - name: Skip notice
+      - name: 跳过提示
         if: steps.decide.outputs.skip == 'true'
-        run: echo "No changes for this service and not forced. Skipping build."
-      - name: Set up QEMU
+        run: echo "当前服务无变更且未强制执行，跳过构建。"
+      - name: 生成后端配置并注入密钥
+        if: steps.decide.outputs.skip != 'true' && matrix.service == 'be'
+        env:
+          API_KEY: ${{ secrets.ALIBAILIAN_API_KEY }}
+        run: |
+          set -e
+          echo "正在从示例生成后端 config.yaml..."
+          cp echome-be/config/etc/config.yaml.example echome-be/config/etc/config.yaml
+          if [ -z "${API_KEY}" ]; then
+            echo "警告: 仓库机密 ALIBAILIAN_API_KEY 未设置，config.yaml 中将保留占位符。" >&2
+          else
+            sed -i "s/your-alibailian-api-key/${API_KEY}/" echome-be/config/etc/config.yaml
+            echo "API 密钥已写入 config.yaml"
+          fi
+      - name: 设置 QEMU
         if: steps.decide.outputs.skip != 'true'
         uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
+      - name: 设置 Docker Buildx
         if: steps.decide.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
-      - name: Log in to GHCR
+      - name: 登录 GHCR 镜像仓库
         if: steps.decide.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build & Push
+      - name: 构建并推送
         if: steps.decide.outputs.skip != 'true'
         uses: docker/build-push-action@v6
         with:
@@ -103,21 +117,21 @@ jobs:
           cache-to: type=registry,ref=ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:buildcache,mode=max
 
   deploy:
-    name: Remote Deploy
+    name: 远程部署
     needs: [build-push, changes]
     runs-on: ubuntu-latest
     # Deploy when build-push succeeded or when forced. This prevents skipping deployment when images were built
     if: ${{ needs.build-push.result == 'success' || github.event.inputs.force == 'true' }}
     steps:
-      - name: Prepare SSH password auth
+      - name: 准备 SSH 密码登录环境
         run: |
           sudo apt-get update -y && sudo apt-get install -y sshpass
-      - name: Compute lowercase owner
+      - name: 计算仓库拥有者小写形式
         id: meta
         run: |
           owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
           echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
-      - name: Deploy via SSH
+      - name: 通过 SSH 远程部署
         env:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST: ${{ env.SERVER_HOST }}
@@ -132,17 +146,17 @@ jobs:
           if [ ! -d deploy ]; then
             mkdir deploy
           fi
-          # 安装或重新安装 Docker
+          # 安装或重新安装 Docker（若未安装）
           if ! command -v docker >/dev/null 2>&1; then
-            echo "Docker not found. Installing via repository script...";
+            echo "未检测到 Docker，开始执行安装脚本...";
             TMP_SCRIPT=/tmp/install_docker.sh
             (curl -fsSL https://gh-proxy.com/https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker-china.sh -o $TMP_SCRIPT || \
              curl -fsSL https://gh-proxy.com/https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker.sh -o $TMP_SCRIPT) || { echo 'Download install script failed'; exit 2; }
             chmod +x $TMP_SCRIPT
             sudo bash $TMP_SCRIPT || { echo 'Docker install failed'; exit 3; }
-            echo "Docker installation executed.";
+            echo "Docker 安装流程已执行完成。";
           else
-            echo "Docker already installed on remote host, skipping installation.";
+            echo "远程主机已安装 Docker，跳过安装步骤。";
           fi
           cat > deploy/docker-compose.yml <<COMPOSE
           version: "3.9"
@@ -161,14 +175,14 @@ jobs:
                 - echome-be
           COMPOSE
           if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USERNAME" ]; then
-            echo "Logging in to ghcr.io as $GHCR_USERNAME"
-            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin || { echo 'Docker login failed'; exit 4; }
+            echo "使用账号 $GHCR_USERNAME 登录 ghcr.io"
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin || { echo 'Docker 登录失败'; exit 4; }
           else
-            echo "GHCR credentials not provided; will attempt anonymous pull (likely to fail for private images)."
+            echo "未提供 GHCR 凭据，将尝试匿名拉取（私有镜像可能失败）。"
           fi
-          echo "Pulling latest images..."
+          echo "拉取最新镜像..."
           sudo docker compose -f deploy/docker-compose.yml pull
-          echo "Recreating containers..."
+          echo "重新创建并启动容器..."
           sudo docker compose -f deploy/docker-compose.yml up -d
           sudo docker image prune -f || true
           EOF
