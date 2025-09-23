@@ -39,9 +39,6 @@ func (h *WebSocketHandlers) RegisterRoutes(e *echo.Echo) {
 // @Summary 语音识别WebSocket连接
 // @Description 建立语音识别的WebSocket连接，用于实时语音转文本
 // @Tags websocket
-// @Param model query string false "ASR模型名称" default(paraformer-realtime-v2)
-// @Param format query string false "音频格式" default(pcm)
-// @Param sample_rate query int false "采样率" default(16000)
 // @Success 101
 // @Router /ws/asr [get]
 func (h *WebSocketHandlers) HandleASRWebSocket(c echo.Context) error {
@@ -55,36 +52,8 @@ func (h *WebSocketHandlers) HandleASRWebSocket(c echo.Context) error {
 	}
 	defer ws.Close()
 
-	// Parse query parameters for ASR configuration
-	model := c.QueryParam("model")
-	if model == "" {
-		model = "paraformer-realtime-v2"
-	}
-
-	format := c.QueryParam("format")
-	if format == "" {
-		format = "pcm"
-	}
-
-	sampleRate := 16000
-	if sr := c.QueryParam("sample_rate"); sr != "" {
-		if parsed, err := parseIntParam(sr); err == nil {
-			sampleRate = parsed
-		}
-	}
-
-	// Create ASR configuration
-	asrConfig := domain.ASRConfig{
-		Model:      model,
-		Format:     format,
-		SampleRate: sampleRate,
-	}
-
-	log.Printf("Starting ASR WebSocket with config: model=%s, format=%s, sample_rate=%d",
-		asrConfig.Model, asrConfig.Format, asrConfig.SampleRate)
-
 	// Use AI service to handle ASR WebSocket connection
-	if err := h.aiService.HandleASR(c.Request().Context(), ws, asrConfig); err != nil {
+	if err := h.aiService.HandleASR(c.Request().Context(), ws); err != nil {
 		log.Printf("ASR WebSocket error: %v", err)
 		return err
 	}
