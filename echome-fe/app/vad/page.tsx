@@ -1,59 +1,87 @@
 "use client";
-import { Alignment, Fit, Layout, type StateMachineInput, StateMachineInputType, useRive } from "@rive-app/react-canvas-lite";
 import { useEffect, useRef, useState } from "react";
-import { useVoiceActivity, VoiceActivity } from "@/hooks/useVoiceActivity";
+import { useVoiceActivity, VoiceActivity } from "../../hooks/useVoiceActivity";
+import { AudioAnimation } from "../components/AudioAnimation";
 
 export default function Page() {
-    const riveInputRef = useRef<StateMachineInput | null>(null);
+    const [audioQueue, setAudioQueue] = useState<Float32Array[]>([]);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    // 当前正在播放的 AudioBufferSourceNode 引用，用于在用户打断时立即停止播放
+    const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
     const { activity } = useVoiceActivity({
-        onChunk: (chunk) => {
-            // TODO: 发送到后端（流式）
-            console.log("chunk", chunk.size, chunk.type, Date.now());
+        onSpeechEnd: (audio: Float32Array) => {
+            console.log("Received audio:", audio);
+            setAudioQueue(q => [...q, audio]);
+        },
+        onFrameProcessed: (frame: Float32Array) => {
+            console.log("Frame processed:", frame);
         }
     });
 
-    const { RiveComponent, rive } = useRive({
-        src: "/ai_voice_states.riv",
-        animations: ["listen", "speak", "think"],
-        stateMachines: "StateMachine",
-        layout: new Layout({ fit: Fit.Contain, alignment: Alignment.Center }),
-        autoplay: true,
-    });
-
-    // Rive Number 输入：0=loading 1=说话中 2=空闲/思考
-    const [machineNumber, setMachineNumber] = useState<number>(0);
-
     useEffect(() => {
-        switch (activity) {
-            case VoiceActivity.Loading:
-                setMachineNumber(0);
-                break;
-            case VoiceActivity.Speaking:
-                setMachineNumber(1);
-                break;
-            case VoiceActivity.Idle:
-                setMachineNumber(2);
-                break;
+        if (activity === VoiceActivity.Speaking) {
+            // 用户开始说话 -> 立即停止当前播放并清空队列
+            const current = sourceRef.current;
+            if (current) {
+                // 移除引用，避免 onended 回调再次处理
+                sourceRef.current = null;
+                try {
+                    current.stop();
+                } catch {
+                    // ignore
+                }
+            }
+            setAudioQueue([]);
+            setIsPlaying(false);
         }
     }, [activity]);
 
     useEffect(() => {
-        if (!rive || !riveInputRef) return;
-        if (!riveInputRef.current) {
-            const inputs = rive.stateMachineInputs("StateMachine");
-            if (!inputs) return;
-            const numberInput = inputs.find(i => i.type === StateMachineInputType.Number);
-            if (!numberInput) return;
-            riveInputRef.current = numberInput;
-        }
-        riveInputRef.current.value = machineNumber;
-    }, [machineNumber, rive]);
+        if (isPlaying || audioQueue.length === 0) return;
+
+        const playNextAudio = async () => {
+            const audioData = audioQueue[0];
+            if (!audioContextRef.current) {
+                audioContextRef.current = new AudioContext({ sampleRate: 16000 });
+            }
+
+            const audioContext = audioContextRef.current;
+            const audioBuffer = audioContext.createBuffer(1, audioData.length, 16000);
+            audioBuffer.copyToChannel(new Float32Array(audioData), 0);
+
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+
+            // 记录当前播放源，供中断时停止
+            sourceRef.current = source;
+            setIsPlaying(true);
+
+            source.onended = () => {
+                // 仅当这是当前活跃的 source 时才处理结束逻辑（避免循环/重复处理）
+                if (sourceRef.current === source) {
+                    sourceRef.current = null;
+                    setAudioQueue(q => q.slice(1));
+                    setIsPlaying(false);
+                }
+            };
+
+            source.start();
+        };
+
+        playNextAudio().catch(err => {
+            console.warn("播放失败，可能需要用户交互", err);
+            setIsPlaying(false);
+        });
+    }, [audioQueue, isPlaying]);
+
 
     return (
         <div className="bg-gray-200 flex items-center justify-center min-h-screen">
             <div className="w-full max-w-3xl h-screen">
-                <RiveComponent />
+                <AudioAnimation activity={activity} />
             </div>
         </div>
     );
