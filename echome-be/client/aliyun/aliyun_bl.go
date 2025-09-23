@@ -15,30 +15,36 @@ import (
 
 // AliClient encapsulates the client for Aliyun API
 type AliClient struct {
-	apiKey     string
-	endPoint   string
-	httpClient *http.Client
-}
-
-// RecognizeAudio implements domain.AIService.
-func (client *AliClient) RecognizeAudio(ctx context.Context, audio []byte, config domain.ASRConfig) (string, error) {
-	panic("unimplemented")
-}
-
-// SynthesizeSpeech implements domain.AIService.
-func (client *AliClient) SynthesizeSpeech(ctx context.Context, text string, config domain.TTSConfig) ([]byte, error) {
-	panic("unimplemented")
+	apiKey      string
+	endPoint    string
+	timeout     int
+	maxRetries  int
+	httpClient  *http.Client
+	llmModel    string
+	maxTokens   int
+	temperature float32
 }
 
 // 确保AliClient实现domain.AIService接口
 var _ domain.AIService = (*AliClient)(nil)
 
-func NewAliClient(apiKey string, endpoint string) *AliClient {
+func NewAliClient(apiKey string, endpoint string, timeout int, maxRetries int, llmModel string, maxTokens int, temperature float32) *AliClient {
+	// 为超时配置设置默认值
+	httpTimeout := 30 * time.Second
+	if timeout > 0 {
+		httpTimeout = time.Duration(timeout) * time.Second
+	}
+	
 	return &AliClient{
-		apiKey:   apiKey,
-		endPoint: endpoint,
+		apiKey:      apiKey,
+		endPoint:    endpoint,
+		timeout:     timeout,
+		maxRetries:  maxRetries,
+		llmModel:    llmModel,
+		maxTokens:   maxTokens,
+		temperature: temperature,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: httpTimeout,
 			Transport: &http.Transport{
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 10,
@@ -98,8 +104,13 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	}
 
 	// 添加超时控制
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	timeout := 30 * time.Second
+	if client.timeout > 0 {
+		timeout = time.Duration(client.timeout) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	
 	// 构建消息列表，支持角色上下文
 	messages := []BailianMessage{}
 
@@ -117,16 +128,31 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 		Content: userInput,
 	})
 
+	// 使用配置的LLM参数
+	model := "qwen-turbo"       // 默认值
+	maxTokens := 1500           // 默认值
+	temperature := float32(0.7) // 明确声明为float32类型
+	
+	if client.llmModel != "" {
+		model = client.llmModel
+	}
+	if client.maxTokens > 0 {
+		maxTokens = client.maxTokens
+	}
+	if client.temperature > 0 {
+		temperature = client.temperature
+	}
+	
 	// 构建请求
 	request := BailianRequest{
-		Model: "qwen-turbo", // 使用通义千问模型
+		Model: model,
 		Input: BailianInput{
 			Messages: messages,
 		},
 		Parameters: map[string]interface{}{
 			"result_format": "text",
-			"max_tokens":    1500,
-			"temperature":   0.7,
+			"max_tokens":    maxTokens,
+			"temperature":   float64(temperature), // 转换为float64
 		},
 	}
 
@@ -149,7 +175,11 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	req.Header.Set("Accept", "application/json")
 
 	// 发送请求（带重试机制）
-	resp, err := client.doRequestWithRetry(req, 3)
+	retries := 3
+	if client.maxRetries > 0 {
+		retries = client.maxRetries
+	}
+	resp, err := client.doRequestWithRetry(req, retries)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}

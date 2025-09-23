@@ -19,7 +19,7 @@ type Config struct {
 		Timeout     int    `mapstructure:"timeout"`
 		MaxRetries  int    `mapstructure:"max_retries"`
 	} `mapstructure:"ai"`
-	Aliyun `mapstructure:"aliyun"`
+	Aliyun Aliyun `mapstructure:"aliyun"`
 }
 
 func Load(path string) *Config {
@@ -27,7 +27,12 @@ func Load(path string) *Config {
 
 	// 统一使用 ALIYUN_API_KEY 作为环境变量来源
 	if apiKey := os.Getenv("ALIYUN_API_KEY"); apiKey != "" {
-		c.APIKey = apiKey
+		c.Aliyun.APIKey = apiKey
+	}
+
+	// 如果没有设置Endpoint，使用默认值
+	if c.Aliyun.Endpoint == "" {
+		c.Aliyun.Endpoint = DefaultALBLEndpoint
 	}
 
 	return c

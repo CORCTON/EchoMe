@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -26,7 +27,7 @@ func DefaultTTSConfig() domain.TTSConfig {
 
 // HandleTTS 通过 Aliyun WebSocket 处理 TTS
 func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn, config domain.TTSConfig) error {
-	aliWS, err := connectToAliyunTTS(client.apiKey, config.Model)
+	aliWS, err := connectToAliyunTTS(client.apiKey, config.Model, client.endPoint)
 	if err != nil {
 		return err
 	}
@@ -53,8 +54,10 @@ func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn
 }
 
 // connectToAliyunTTS 连接到 Aliyun TTS WebSocket
-func connectToAliyunTTS(apiKey, model string) (*websocket.Conn, error) {
-	url := fmt.Sprintf("wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=%s", model)
+func connectToAliyunTTS(apiKey, model string, endpoint string) (*websocket.Conn, error) {
+	// 从配置的endpoint构建WebSocket URL
+	baseURL := strings.Replace(endpoint, "https://", "wss://", 1)
+	url := fmt.Sprintf("%s/api-ws/v1/realtime?model=%s", baseURL, model)
 	dialer := websocket.Dialer{}
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+apiKey)

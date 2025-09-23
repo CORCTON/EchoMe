@@ -28,7 +28,7 @@ func (v *ConfigValidator) ValidateConfig(cfg *config.Config) error {
 	}
 
 	if err := v.validateAliyunConfig(cfg); err != nil {
-		return fmt.Errorf("Aliyun config validation failed: %w", err)
+		return fmt.Errorf("aliyun config validation failed: %w", err)
 	}
 
 	return nil
@@ -77,35 +77,36 @@ func (v *ConfigValidator) validateAIConfig(cfg *config.Config) error {
 // validateAliyunConfig 验证阿里云配置
 func (v *ConfigValidator) validateAliyunConfig(cfg *config.Config) error {
 	if cfg.AI.ServiceType == "alibailian" {
-		if cfg.APIKey == "" {
-			return fmt.Errorf("Aliyun API key is required for alibailian service")
+		if cfg.Aliyun.APIKey == "" {
+
+			return fmt.Errorf("aliyun API key is required for alibailian service")
 		}
 
-		if cfg.Endpoint == "" {
-			return fmt.Errorf("Aliyun endpoint is required")
+		if cfg.Aliyun.Endpoint == "" {
+			return fmt.Errorf("aliyun endpoint is required")
 		}
 
 		// 验证endpoint格式
-		if _, err := url.Parse(cfg.Endpoint); err != nil {
-			return fmt.Errorf("invalid Aliyun endpoint format: %s", cfg.Endpoint)
+		if _, err := url.Parse(cfg.Aliyun.Endpoint); err != nil {
+			return fmt.Errorf("invalid Aliyun endpoint format: %s", cfg.Aliyun.Endpoint)
 		}
 
-		if cfg.Region == "" {
-			return fmt.Errorf("Aliyun region is required")
+		if cfg.Aliyun.Region == "" {
+			return fmt.Errorf("aliyun region is required")
 		}
 
 		// 验证ASR配置
-		if err := v.validateASRConfig(&cfg.ASR); err != nil {
+		if err := v.validateASRConfig(&cfg.Aliyun.ASR); err != nil {
 			return fmt.Errorf("ASR config validation failed: %w", err)
 		}
 
 		// 验证TTS配置
-		if err := v.validateTTSConfig(&cfg.TTS); err != nil {
+		if err := v.validateTTSConfig(&cfg.Aliyun.TTS); err != nil {
 			return fmt.Errorf("TTS config validation failed: %w", err)
 		}
 
 		// 验证LLM配置
-		if err := v.validateLLMConfig(&cfg.LLM); err != nil {
+		if err := v.validateLLMConfig(&cfg.Aliyun.LLM); err != nil {
 			return fmt.Errorf("LLM config validation failed: %w", err)
 		}
 	}

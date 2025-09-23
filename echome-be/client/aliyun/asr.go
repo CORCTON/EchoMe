@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -39,7 +40,7 @@ func (client *AliClient) HandleASR(ctx context.Context, clientWS *websocket.Conn
 		LanguageHints: config.LanguageHints,
 	}
 
-	aliWS, err := connectToAliyunASR(client.apiKey)
+	aliWS, err := connectToAliyunASR(client.apiKey, client.endPoint)
 	if err != nil {
 		return err
 	}
@@ -66,11 +67,13 @@ func (client *AliClient) HandleASR(ctx context.Context, clientWS *websocket.Conn
 }
 
 // connectToAliyunASR 连接到阿里云ASR WebSocket
-func connectToAliyunASR(apiKey string) (*websocket.Conn, error) {
+func connectToAliyunASR(apiKey string, endpoint string) (*websocket.Conn, error) {
 	dialer := websocket.Dialer{}
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+apiKey)
-	ws, _, err := dialer.Dial("wss://dashscope.aliyuncs.com/api-ws/v1/inference", headers)
+	// 从配置的endpoint构建WebSocket URL
+	wsURL := strings.Replace(endpoint, "https://", "wss://", 1) + "/api-ws/v1/inference"
+	ws, _, err := dialer.Dial(wsURL, headers)
 	return ws, err
 }
 

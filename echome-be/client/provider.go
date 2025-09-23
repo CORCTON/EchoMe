@@ -23,7 +23,17 @@ func NewAIServiceFromConfig(cfg *config.Config) (*aliyun.AliClient, error) {
 	if cfg.AI.ServiceType == "" {
 		return nil, errors.New("AI service type is not configured")
 	}
-	aiService, err := NewAIService(AIServiceType(cfg.AI.ServiceType), cfg.APIKey,cfg.Endpoint)
+	// 使用配置中的所有相关参数
+	aiService, err := NewAIService(
+		AIServiceType(cfg.AI.ServiceType), 
+		cfg.Aliyun.APIKey, 
+		cfg.Aliyun.Endpoint, 
+		cfg.AI.Timeout, 
+		cfg.AI.MaxRetries, 
+		cfg.Aliyun.LLM.Model, 
+		cfg.Aliyun.LLM.MaxTokens, 
+		cfg.Aliyun.LLM.Temperature,
+	)
 	if err != nil {
 		return nil, err
 	}

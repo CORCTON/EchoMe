@@ -7,9 +7,16 @@ import (
 
 func TestAliClient_GenerateResponse(t *testing.T) {
 	// 注意：这个测试需要真实的API密钥才能运行
-	// 在实际环境中，应该使用mock来测试
 
-	client := NewAliClient("sk-64d642d1fbfc448f94560df95bc34d96", "https://dashscope.aliyuncs.com")
+	client := NewAliClient(
+		"test-api-key", 
+		"https://dashscope.aliyuncs.com",
+		30,             // timeout (seconds)
+		3,              // maxRetries
+		"qwen-turbo",   // llmModel
+		4000,           // maxTokens
+		0.7,            // temperature
+	)
 
 	// 测试基本响应生成（不会实际调用API，因为使用的是测试密钥）
 	ctx := context.Background()
@@ -28,7 +35,15 @@ func TestAliClient_GenerateResponse(t *testing.T) {
 }
 
 func TestAliClient_GenerateResponseWithCharacter(t *testing.T) {
-	client := NewAliClient("test-api-key", "")
+	client := NewAliClient(
+		"test-api-key",
+		"",
+		30,             // timeout (seconds)
+		3,              // maxRetries
+		"qwen-turbo",   // llmModel
+		4000,           // maxTokens
+		0.7,            // temperature
+	)
 
 	ctx := context.Background()
 	userInput := "介绍一下你自己"

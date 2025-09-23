@@ -129,20 +129,69 @@ func (a *Application) validateConfiguration() error {
 	return a.validator.ValidateConfig(a.config)
 }
 
-// healthCheckHandler provides a health check endpoint
+// healthCheckHandler provides a health check endpoint with actual service validation
 func (a *Application) healthCheckHandler(c echo.Context) error {
-	// 检查各个服务的健康状态
+	// Perform actual health checks for each component
 	healthStatus := "healthy"
-	services := map[string]string{
-		"server":     "running",
-		"ai_service": a.config.AI.ServiceType,
-		"websockets": "available",
+	services := make(map[string]map[string]string)
+	errors := []string{}
+
+	// Check server health (basic check - if we're handling this request, server is up)
+	serverStatus := "running"
+	services["server"] = map[string]string{
+		"status":  serverStatus,
+		"port":    a.config.Server.Port,
+		"protocol": "http",
+	}
+
+	// Check AI service configuration
+	aiserviceStatus := "configured"
+	aiserviceDetails := map[string]string{
+		"status":      aiserviceStatus,
+		"type":        a.config.AI.ServiceType,
+		"timeout":     fmt.Sprintf("%dms", a.config.AI.Timeout),
+		"maxRetries":  fmt.Sprintf("%d", a.config.AI.MaxRetries),
+	}
+
+	// If using Aliyun service, check key and endpoint presence
+	if a.config.AI.ServiceType == "alibailian" {
+		if a.config.Aliyun.APIKey == "" {
+			aiserviceStatus = "error"
+			aiserviceDetails["error"] = "Missing API key"
+			errors = append(errors, "AI service missing API key")
+		}
+		if a.config.Aliyun.Endpoint == "" {
+			aiserviceStatus = "error"
+			aiserviceDetails["error"] = "Missing endpoint"
+			errors = append(errors, "AI service missing endpoint")
+		}
+	}
+	services["ai_service"] = aiserviceDetails
+
+	// Check WebSocket availability (routes are validated at startup)
+	services["websockets"] = map[string]string{
+		"status": "available",
+	}
+
+	// Check configuration validity
+	configStatus := "valid"
+	if err := a.validateConfiguration(); err != nil {
+		configStatus = "invalid"
+		errors = append(errors, fmt.Sprintf("Configuration error: %v", err))
+	}
+	services["configuration"] = map[string]string{
+		"status": configStatus,
+	}
+
+	// Update overall status if any errors found
+	if len(errors) > 0 {
+		healthStatus = "degraded"
 	}
 
 	healthData := map[string]any{
 		"status":    healthStatus,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"version":   "1.0.0", // 可以从配置或构建信息中获取
+		"version":   "1.0.0", // Can be retrieved from config or build info
 		"services":  services,
 		"endpoints": map[string][]string{
 			"websocket": {
@@ -154,8 +203,20 @@ func (a *Application) healthCheckHandler(c echo.Context) error {
 			"api": {
 				"/health",
 				"/swagger/*",
+				"/api/characters",
+				"/api/characters/search",
+				"/api/characters/:id",
+				"/api/sessions",
+				"/api/sessions/:id",
+				"/api/sessions/:id/messages",
 			},
 		},
+	}
+
+	// If there are errors, include them in the response
+	if len(errors) > 0 {
+		healthData["errors"] = errors
+		return c.JSON(http.StatusServiceUnavailable, healthData)
 	}
 
 	return response.Success(c, healthData)
