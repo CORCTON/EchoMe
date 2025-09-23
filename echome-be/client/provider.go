@@ -31,18 +31,21 @@ func NewAIServiceFromConfig(cfg *config.Config) (*aliyun.AliClient, error) {
 	// 根据不同的服务类型创建对应的AI服务实例
 	switch serviceType {
 	case ServiceTypeALBL:
-		// Validate ALBL configuration
-		if cfg.ALBL.APIKey == "" {
-			return nil, errors.New("ALBL API key is required")
+		// 使用统一的 Aliyun.APIKey 字段
+		if cfg.Aliyun.APIKey == "" {
+			return nil, errors.New("Aliyun API key is required")
 		}
 
-		// Use ALBL endpoint if provided, otherwise use default
-		endpoint := cfg.ALBL.Endpoint
+		// Endpoint 优先使用配置的 Aliyun.endpoint，否则回退到 ALBL.endpoint 再回退默认
+		endpoint := cfg.Aliyun.Endpoint
+		if endpoint == "" {
+			endpoint = cfg.ALBL.Endpoint
+		}
 		if endpoint == "" {
 			endpoint = "https://dashscope.aliyuncs.com"
 		}
 
-		client := aliyun.NewAliClient(cfg.ALBL.APIKey, endpoint)
+		client := aliyun.NewAliClient(cfg.Aliyun.APIKey, endpoint)
 		if client == nil {
 			return nil, errors.New("failed to create Aliyun client")
 		}

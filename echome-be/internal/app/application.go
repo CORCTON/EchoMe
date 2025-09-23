@@ -129,9 +129,7 @@ func (a *Application) validateConfiguration() error {
 	// Validate AI service specific configuration
 	switch a.config.AI.ServiceType {
 	case "alibailian":
-		if a.config.ALBL.APIKey == "" {
-			return fmt.Errorf("ALBL API key is required for alibailian service")
-		}
+		// 统一使用 Aliyun.APIKey 作为唯一密钥来源
 		if a.config.Aliyun.APIKey == "" {
 			return fmt.Errorf("Aliyun API key is required for alibailian service")
 		}
