@@ -130,7 +130,7 @@ jobs:
           if [ ! -d deploy ]; then
             mkdir deploy
           fi
-          # 始终使用仓库脚本安装（或重新安装）Docker（简化逻辑，不做检测）
+          # 安装或重新安装 Docker
           if ! command -v docker >/dev/null 2>&1; then
             echo "Docker not found. Installing via repository script...";
             TMP_SCRIPT=/tmp/install_docker.sh
