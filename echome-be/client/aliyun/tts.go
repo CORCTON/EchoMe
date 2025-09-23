@@ -2,6 +2,7 @@ package aliyun
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -66,6 +67,11 @@ func connectToAliyunTTS(apiKey, endpoint, model string) (*websocket.Conn, error)
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 30 * time.Second,
+		ReadBufferSize:   4096,
+		WriteBufferSize:  4096,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true, // 临时禁用验证
+		},
 	}
 
 	headers := http.Header{}
