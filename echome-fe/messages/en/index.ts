@@ -1,7 +1,7 @@
-import home from "./home.json";
+import layout from "./layout.json";
 
 const messages = {
-    home,
+    layout,
 };
 
 export default messages;

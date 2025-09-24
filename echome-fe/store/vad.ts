@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { VoiceActivity } from "@/types/vad";
+import { MicVAD } from "@ricky0123/vad-web";
 
 export enum ConnectionState {
     Connecting,
@@ -12,6 +13,8 @@ interface VadState {
     voiceActivity: VoiceActivity;
     transcript: string;
     socket: WebSocket | null;
+    vad: MicVAD | null;
+    initVad: () => Promise<void>;
     connect: () => void;
     disconnect: () => void;
     send: (data: Float32Array) => void;
@@ -21,6 +24,36 @@ interface VadState {
 export const useVadStore = create<VadState>((set, get) => ({
     connectionState: ConnectionState.Disconnected,
     voiceActivity: VoiceActivity.Loading,
+    vad: null,
+    initVad: async () => {
+        set({ voiceActivity: VoiceActivity.Loading });
+        try {
+            const vad = await MicVAD.new({
+                baseAssetPath: "/vad/",
+                onnxWASMBasePath: "/vad/",
+                model: "v5",
+                preSpeechPadMs: 200,
+                positiveSpeechThreshold: 0.8,
+                minSpeechMs: 100,
+                onSpeechStart: () => {
+                    set({ voiceActivity: VoiceActivity.Speaking });
+                },
+                onSpeechEnd: () => {
+                    set({ voiceActivity: VoiceActivity.Idle });
+                },
+                onFrameProcessed: (probabilities, frame) => {
+                    if (probabilities.isSpeech > 0.8) {
+                        get().send(frame);
+                    }
+                },
+            });
+            set({ vad, voiceActivity: VoiceActivity.Idle });
+            vad.start();
+        } catch (e) {
+            console.error("Failed to initialize VAD", e);
+            set({ voiceActivity: VoiceActivity.Idle });
+        }
+    },
     transcript: "",
     socket: null,
     connect: () => {
@@ -63,7 +96,7 @@ export const useVadStore = create<VadState>((set, get) => ({
         set({ socket: newSocket });
     },
     disconnect: () => {
-        const { socket } = get();
+        const { socket, vad } = get();
         if (socket) {
             // Remove listeners to prevent memory leaks and unwanted state updates
             socket.onopen = null;
@@ -72,7 +105,8 @@ export const useVadStore = create<VadState>((set, get) => ({
             socket.onerror = null;
             socket.close();
         }
-        set({ socket: null, connectionState: ConnectionState.Disconnected });
+        vad?.destroy();
+        set({ socket: null, connectionState: ConnectionState.Disconnected, vad: null });
     },
     send: (data: Float32Array) => {
         const socket = get().socket;
