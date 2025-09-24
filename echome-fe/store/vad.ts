@@ -64,7 +64,7 @@ export const useVadStore = create<VadState>((set, get) => ({
 
         set({ connectionState: ConnectionState.Connecting });
 
-        const url = new URL("ws://115.190.101.38:8081/ws/asr");
+        const url = new URL(`${process.env.NEXT_PUBLIC_WS_URL}/ws/asr`);
         url.searchParams.set("sample_rate", "16000");
         url.searchParams.set("format", "pcm");
         const newSocket = new WebSocket(url);

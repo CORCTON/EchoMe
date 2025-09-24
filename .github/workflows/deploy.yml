@@ -92,6 +92,8 @@ jobs:
           context: ${{ matrix.service == 'be' && 'echome-be' || 'echome-fe' }}
           file: ${{ matrix.service == 'be' && 'echome-be/Dockerfile' || 'echome-fe/Dockerfile' }}
           push: true
+          build-args: |
+            NEXT_PUBLIC_WS_URL=${{ secrets.NEXT_PUBLIC_WS_URL }}
           tags: |
             ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:latest
             ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:${{ github.sha }}
@@ -147,13 +149,14 @@ jobs:
         if: steps.should-deploy.outputs.deploy == 'true'
         run: |
           ssh -o StrictHostKeyChecking=no ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} \
-            "GHCR_USERNAME='${{ secrets.GHCR_USERNAME }}' GHCR_TOKEN='${{ secrets.GHCR_TOKEN }}' OWNER_LOWER='${{ steps.meta.outputs.owner_lower }}' SERVICE='${{ matrix.service }}' bash -s" <<'EOF'
+            "GHCR_USERNAME='${{ secrets.GHCR_USERNAME }}' GHCR_TOKEN='${{ secrets.GHCR_TOKEN }}' NEXT_PUBLIC_WS_URL='${{ secrets.NEXT_PUBLIC_WS_URL }}' OWNER_LOWER='${{ steps.meta.outputs.owner_lower }}' SERVICE='${{ matrix.service }}' bash -s" <<'EOF'
           set -e          
           # GHCR 登录
           echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 
           # 设置环境变量
           export OWNER_LOWER="${OWNER_LOWER,,}"  # 转换为小写
+          export NEXT_PUBLIC_WS_URL="${NEXT_PUBLIC_WS_URL}"
           
           # 只拉取和重启指定的服务
           echo "拉取 echome-${SERVICE} 镜像..."
