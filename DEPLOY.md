@@ -90,5 +90,31 @@ env_file:
 - 添加版本 tag + Sentry 发布钩子
 - 使用自定义 overlay network 供未来扩展
 
+## 使用 Traefik 自动申请 HTTPS（最简单方法）
+
+若想让项目通过域名自动获得 Let's Encrypt 证书，可以在远程服务器上使用 Traefik 作为反向代理。仓库已经在 CI 部署脚本中加入了一个最小的 Traefik 配置：
+
+- 需要在 GitHub 仓库的 Secrets 中添加：
+  - `SERVER_USER`、`SERVER_PASSWORD`（当前默认使用 password 登录）；
+  - `SERVER_HOST`：用于 SSH 连接的主机地址，可以是服务器公网 IP（例如 115.190.101.38）或域名；
+  - `SERVER_DOMAIN`：用于 TLS/Traefik 的域名（必须是一个可被 DNS 指向服务器 IP 的域名，例如 example.com），注意 `SERVER_HOST` 与 `SERVER_DOMAIN` 可能不同；
+  - `LETSENCRYPT_EMAIL`：用于注册 Let's Encrypt 的联系邮箱（可选，若为空会使用 admin@SERVER_HOST）。
+
+- 工作流会在服务器 `/opt/echome/deploy` 生成 `docker-compose.yml`，并创建 `deploy/letsencrypt/acme.json`（权限 600）。Traefik 会监听 80/443，并为 `echome-fe`（主域名或 www）与 `echome-be`（api. 子域）申请证书。
+
+- 简单测试与调试步骤：
+  1. 确认域名 DNS 指向服务器公网 IP（A 记录）；
+  2. 在 GitHub Actions 中运行工作流（可用 `workflow_dispatch` 手动触发并传入 `force=true`）；
+  3. 登录服务器：
+     ```bash
+     ssh $SERVER_USER@your.server
+     cd /opt/echome
+     sudo docker compose -f deploy/docker-compose.yml logs -f traefik
+     ```
+     观察 Traefik 日志中 ACME 申请流程；若挑战失败，日志会显示错误原因（DNS、端口被防火墙占用、或 80/443 未开放）。
+  4. 若证书成功，浏览器访问 https://your.domain 应显示前端服务，并且证书由 Let's Encrypt 签发。
+
+注意：在中国大陆环境，访问 Let's Encrypt 可能会更慢或失败，可考虑使用自签证书或商业 CA。若你需要使用 Cloudflare、Aliyun 之类的 DNS 验证来申请证书（DNS-01），可以扩展 Traefik 的 certificatesResolvers 配置并在远程环境中注入相应 API Key。
+
 ---
 如需调整请在 Issue 中描述。祝部署顺利。
