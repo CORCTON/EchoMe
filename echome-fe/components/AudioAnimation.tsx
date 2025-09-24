@@ -1,7 +1,7 @@
 "use client";
 import { Alignment, Fit, Layout, type StateMachineInput, StateMachineInputType, useRive } from "@rive-app/react-canvas-lite";
 import { useEffect, useRef, useState } from "react";
-import { VoiceActivity } from "../../hooks/useVoiceActivity";
+import { VoiceActivity } from "../types/vad";
 
 interface AudioAnimationProps {
     activity: VoiceActivity;

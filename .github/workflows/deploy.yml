@@ -122,9 +122,6 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           SERVER_HOST: ${{ env.SERVER_HOST }}
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          # 用于 TLS / Traefik 配置（与 SSH 登录 IP 区分）
-          SERVER_DOMAIN: ${{ secrets.SERVER_DOMAIN }}
-          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           ALIYUN_API_KEY: ${{ secrets.ALIYUN_API_KEY }}
@@ -138,13 +135,6 @@ jobs:
           fi
           # 生成环境变量文件，传递敏感配置
           echo "ALIYUN_API_KEY=$ALIYUN_API_KEY" > deploy/.env
-          # 写入域名与 Let's Encrypt 邮箱（注意：SERVER_HOST 用于 SSH/IP，SERVER_DOMAIN 用于域名）
-          echo "SERVER_DOMAIN=$SERVER_DOMAIN" >> deploy/.env
-          if [ -n "$LETSENCRYPT_EMAIL" ]; then
-            echo "LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL" >> deploy/.env
-          else
-            echo "LETSENCRYPT_EMAIL=admin@$SERVER_DOMAIN" >> deploy/.env
-          fi
           echo "已生成 deploy/.env 文件用于传递敏感配置"
           # 安装或重新安装 Docker（若未安装）
           if ! command -v docker >/dev/null 2>&1; then
@@ -158,58 +148,24 @@ jobs:
           else
             echo "远程主机已安装 Docker，跳过安装步骤。";
           fi
-          # 使用 Traefik 作为反向代理并自动申请 Let's Encrypt 证书
           cat > deploy/docker-compose.yml <<'COMPOSE'
-          version: '3.8'
           services:
-            traefik:
-              image: traefik:v3.0
-              container_name: traefik
-              restart: unless-stopped
-              command:
-                - --entrypoints.web.address=:80
-                - --entrypoints.websecure.address=:443
-                - --providers.docker=true
-                - --providers.docker.exposedbydefault=false
-                - --certificatesresolvers.le.acme.tlschallenge=true
-                - --certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}
-                - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-              ports:
-                - "80:80"
-                - "443:443"
-              volumes:
-                - ./letsencrypt:/letsencrypt
-                - /var/run/docker.sock:/var/run/docker.sock:ro
-              env_file:
-                - .env
-
             echome-be:
               image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-be:latest
               container_name: echome-be
               restart: unless-stopped
-              labels:
-                - "traefik.enable=true"
-                - "traefik.http.routers.echome-be.rule=Host(`api.${SERVER_DOMAIN}`)"
-                - "traefik.http.routers.echome-be.entrypoints=websecure"
-                - "traefik.http.routers.echome-be.tls.certresolver=le"
+              ports:
+                - "8081:8081"
               env_file:
                 - .env
-
             echome-fe:
               image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-fe:latest
               container_name: echome-fe
               restart: unless-stopped
-              labels:
-                - "traefik.enable=true"
-                - "traefik.http.routers.echome-fe.rule=Host(`www.${SERVER_DOMAIN}`) || Host(`${SERVER_DOMAIN}`)"
-                - "traefik.http.routers.echome-fe.entrypoints=websecure"
-                - "traefik.http.routers.echome-fe.tls.certresolver=le"
+              ports:
+                - "3000:3000"
               depends_on:
                 - echome-be
-          volumes:
-            letsencrypt:
-              driver: local
-
           networks:
             default:
               driver: bridge
@@ -220,10 +176,6 @@ jobs:
           else
             echo "未提供 GHCR 凭据，将尝试匿名拉取（私有镜像可能失败）。"
           fi
-          # 确保 letsencrypt 目录和 acme.json 存在且权限正确
-          sudo mkdir -p deploy/letsencrypt
-          sudo touch deploy/letsencrypt/acme.json
-          sudo chmod 600 deploy/letsencrypt/acme.json
           echo "拉取最新镜像..."
           sudo docker compose -f deploy/docker-compose.yml pull
           echo "重新创建并启动容器..."
