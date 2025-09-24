@@ -1,11 +1,7 @@
 import { useMicVAD } from "@ricky0123/vad-react";
-import { useEffect, useState } from "react";
-
-export enum VoiceActivity {
-  Loading,
-  Speaking,
-  Idle,
-}
+import { useEffect } from "react";
+import { useVadStore } from "@/store/vad";
+import { VoiceActivity } from "@/types/vad";
 
 export interface UseVoiceActivityOptions {
   onSpeechEnd?: (audio: Float32Array) => void;
@@ -13,7 +9,7 @@ export interface UseVoiceActivityOptions {
 }
 
 export function useVoiceActivity(options: UseVoiceActivityOptions) {
-  const [activity, setActivity] = useState(VoiceActivity.Loading);
+  const { setVoiceActivity } = useVadStore();
 
   const vad = useMicVAD({
     model: "v5",
@@ -23,10 +19,10 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
     positiveSpeechThreshold: 0.8,
     minSpeechMs: 100,
     onSpeechStart: () => {
-      setActivity(VoiceActivity.Speaking);
+      setVoiceActivity(VoiceActivity.Speaking);
     },
     onSpeechEnd: (audio) => {
-      setActivity(VoiceActivity.Idle);
+      setVoiceActivity(VoiceActivity.Idle);
       options.onSpeechEnd?.(audio);
     },
     onFrameProcessed: (probabilities, frame) => {
@@ -37,8 +33,8 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
   });
 
   useEffect(() => {
-    setActivity(vad.loading ? VoiceActivity.Loading : VoiceActivity.Idle);
-  }, [vad.loading]);
+    setVoiceActivity(vad.loading ? VoiceActivity.Loading : VoiceActivity.Idle);
+  }, [vad.loading, setVoiceActivity]);
 
-  return { activity, vad };
+  return { vad };
 }
