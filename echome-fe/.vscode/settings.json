@@ -1,7 +1,7 @@
 {
   "i18n-ally.sourceLanguage": "zh",
   "i18n-ally.displayLanguage": "zh",
-  "i18n-ally.localesPaths": ["src/messages"],
+  "i18n-ally.localesPaths": ["messages"],
   "i18n-ally.namespace": true,
   "i18n-ally.pathMatcher": "{locale}/{namespaces}.json",
   "i18n-ally.keystyle": "nested",

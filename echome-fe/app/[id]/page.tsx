@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useMemo } from "react";
-import { useVoiceActivity } from "../../hooks/useVoiceActivity";
 
 import { ConnectionState, useVadStore } from "@/store/vad";
 import { VoiceActivity } from "@/types/vad";
@@ -8,28 +7,24 @@ import { VoiceActivity } from "@/types/vad";
 import { Message, MessageContent, MessageAvatar } from "@/components/ui/message";
 import { AudioAnimation } from "@/components/AudioAnimation";
 import { cn } from "@/lib/utils";
+import { Loader } from "@/components/ui/loader";
 
 export default function Page() {
-    const { connectionState, voiceActivity, transcript, connect, send } = useVadStore();
+    const { connectionState, voiceActivity, transcript, connect, initVad } = useVadStore();
 
     const messages = [
         { role: "user", text: transcript },
-        { role: "assistant", text: "(AI 回复，后端未实现)" },
+        // { role: "assistant", text: "(AI 回复，未实现)" },
     ];
-
-    useVoiceActivity({
-        onFrameProcessed: (frame: Float32Array) => {
-            send(frame);
-        }
-    });
 
     useEffect(() => {
         connect();
+        initVad();
         return () => {
             const { disconnect } = useVadStore.getState();
             disconnect();
         };
-    }, [connect]);
+    }, [connect, initVad]);
 
     const isReady = useMemo(() => {
         return connectionState === ConnectionState.Connected && voiceActivity !== VoiceActivity.Loading;
@@ -37,44 +32,38 @@ export default function Page() {
 
     return (
         <div className="bg-gray-200 flex items-center justify-center min-h-screen overflow-hidden">
-            <div className="w-full max-w-3xl h-screen flex flex-col justify-center items-center relative">
-                {/* Messages list - only render messages[0] for now using shared Message components */}
-                {isReady && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full mb-4 w-full max-w-xl px-4 transition-all duration-500">
-                        <div className="flex flex-col gap-4">
-                            {/* 用户输入，靠右 */}
-                            {messages[0].text && (
-                                <Message className="justify-end">
-                                    <MessageContent>
-                                        {messages[0].text}
+            <div className="w-full  h-screen flex flex-col justify-center items-center relative">
+                {/* 消息列表 */}
+                <div className={cn("w-full flex-1 overflow-y-auto pt-4 pb-40 no-scrollbar [mask-image:linear-gradient(to_bottom,black_calc(100%-10rem),transparent)] transition-opacity duration-300 ease-in-out", { "opacity-0 invisible": !isReady })}>
+                    <div className="px-4 space-y-4 mx-auto w-[80vw]">
+                        {messages.map((msg, index) => (
+                            msg.text && (
+                                <Message key={`${msg.role}-${index}`} className={cn("items-start gap-4", { "justify-end": msg.role === "user", "justify-start": msg.role === "assistant" })}>
+                                    {msg.role === "assistant" && <MessageAvatar src="/avatars/ai.png" alt="AI" fallback="AI" />}
+                                    <MessageContent className={cn(
+                                        { "bg-white": msg.role === "user" },
+                                        { "bg-transparent p-0": msg.role === "assistant" }
+                                    )}>
+                                        {msg.text}
                                     </MessageContent>
+                                    {msg.role === "user" && <MessageAvatar src="/avatars/user.png" alt="User" fallback="U" />}
                                 </Message>
-                            )}
-
-                            {/* AI回复，靠左 */}
-                            {messages[1].text && (
-                                <Message className="justify-start">
-                                    <MessageAvatar src="/avatars/ai.png" alt="AI" fallback="AI" />
-                                    <MessageContent className="bg-transparent p-0">
-                                        {messages[1].text}
-                                    </MessageContent>
-                                </Message>
-                            )}
-                        </div>
+                            )
+                        ))}
                     </div>
-                )}
+                </div>
 
-                {/* AudioRive动画 */}
-                <div
-                    className={cn(
-                        "transition-all duration-300 ease-in-out",
-                        {
-                            "absolute bottom-10 w-40 h-40": isReady,
-                            "w-full h-full": !isReady,
-                        }
-                    )}
-                >
-                    <AudioAnimation activity={voiceActivity} />
+                {/* 动画容器 */}
+                <div className="absolute inset-0 pointer-events-none">
+                    {/* 准备Loader*/}
+                    <div className={cn("absolute inset-0 transition-opacity duration-300 ease-in-out", { "opacity-0": isReady })}>
+                        <Loader />
+                    </div>
+
+                    {/* Ready Rive动画 */}
+                    <div className={cn("absolute bottom-10 left-1/2 -translate-x-1/2 w-40 h-40 transition-opacity duration-300 ease-in-out", { "opacity-0": !isReady })}>
+                        <AudioAnimation activity={voiceActivity} />
+                    </div>
                 </div>
             </div>
         </div>

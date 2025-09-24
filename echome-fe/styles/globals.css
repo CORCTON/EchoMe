@@ -117,3 +117,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 隐藏导航条 */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
