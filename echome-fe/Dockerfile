@@ -27,6 +27,10 @@ COPY --from=deps /app/node_modules ./node_modules
 # 拷贝项目文件
 COPY . .
 
+# 声明构建参数
+ARG NEXT_PUBLIC_WS_URL
+ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
+
 # 确保 public 目录存在
 RUN mkdir -p public
 
