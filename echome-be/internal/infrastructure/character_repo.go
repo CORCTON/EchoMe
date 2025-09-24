@@ -14,6 +14,8 @@ type MemoryCharacterRepository struct {
 	mu         sync.RWMutex
 }
 
+var _ domain.CharacterRepository = (*MemoryCharacterRepository)(nil)
+
 func NewMemoryCharacterRepository() *MemoryCharacterRepository {
 	repo := &MemoryCharacterRepository{
 		characters: make(map[uuid.UUID]*domain.Character),
@@ -30,7 +32,7 @@ func NewMemoryCharacterRepository() *MemoryCharacterRepository {
 func (r *MemoryCharacterRepository) initializeDefaultCharacters() {
 	defaultCharacters := []*domain.Character{
 		{
-			ID:          uuid.New(),
+			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 			Name:        "小助手",
 			Description: "友善的AI助手",
 			Persona:     "你是一个友善、耐心的AI助手，总是乐于帮助用户解决问题。你说话温和，回答详细且有用。",
@@ -144,24 +146,6 @@ func (r *MemoryCharacterRepository) GetByID(id uuid.UUID) (*domain.Character, er
 	return character, nil
 }
 
-// GetByName 根据名称获取角色
-func (r *MemoryCharacterRepository) GetByName(name string) (*domain.Character, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	id, exists := r.nameIndex[name]
-	if !exists {
-		return nil, errors.New("character not found")
-	}
-
-	character, exists := r.characters[id]
-	if !exists {
-		return nil, errors.New("character not found")
-	}
-
-	return character, nil
-}
-
 // GetAll 获取所有角色
 func (r *MemoryCharacterRepository) GetAll() ([]*domain.Character, error) {
 	r.mu.RLock()
@@ -173,25 +157,6 @@ func (r *MemoryCharacterRepository) GetAll() ([]*domain.Character, error) {
 	}
 
 	return characters, nil
-}
-
-// Search 根据查询字符串搜索角色
-func (r *MemoryCharacterRepository) Search(query string) ([]*domain.Character, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	var results []*domain.Character
-
-	// 简单的字符串匹配搜索
-	for _, character := range r.characters {
-		if character.Name == query ||
-			character.Description == query ||
-			character.Persona == query {
-			results = append(results, character)
-		}
-	}
-
-	return results, nil
 }
 
 // Save 新建角色

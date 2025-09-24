@@ -14,7 +14,7 @@ aliyun:
     model: "paraformer-realtime-v2"
     sample_rate: 16000
     format: "pcm"
-    language_hints: ["zh-CN", "en-US"]
+    language_hints: ["zh", "en"]
   tts:
     model: "qwen-tts-realtime"
     default_voice: "Cherry"

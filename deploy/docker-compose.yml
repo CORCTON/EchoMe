@@ -1,6 +1,6 @@
 services:
   echome-be:
-    image: ghcr.io/corcton/echome-be:latest
+    image: ghcr.io/${OWNER_LOWER:-corcton}/echome-be:latest
     container_name: echome-be
     restart: unless-stopped
     ports:
@@ -11,7 +11,7 @@ services:
       - echome-net
 
   echome-fe:
-    image: ghcr.io/corcton/echome-fe:latest
+    image: ghcr.io/${OWNER_LOWER:-corcton}/echome-fe:latest
     container_name: echome-fe
     restart: unless-stopped
     ports:

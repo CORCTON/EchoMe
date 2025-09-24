@@ -16,14 +16,10 @@ const (
 )
 
 // NewAIService 根据服务类型创建对应的AI服务实例
-func NewAIService(serviceType AIServiceType, apiKey string, optionalParams ...string) (domain.AIService, error) {
+func NewAIService(serviceType AIServiceType, apiKey string, endpoint string, timeout int, maxRetries int, llmModel string, maxTokens int, temperature float32) (domain.AIService, error) {
 	switch serviceType {
 	case ServiceTypeALBL:
-		endpoint := ""
-		if len(optionalParams) > 1 {
-			endpoint = optionalParams[1]
-		}
-		return aliyun.NewAliClient(apiKey, endpoint), nil
+		return aliyun.NewAliClient(apiKey, endpoint, timeout, maxRetries, llmModel, maxTokens, temperature), nil
 	default:
 		return nil, errors.New("unknown AI service type")
 	}

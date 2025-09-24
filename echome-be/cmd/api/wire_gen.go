@@ -14,8 +14,11 @@ import (
 	"github.com/justin/echome-be/internal/interfaces"
 	"github.com/justin/echome-be/internal/service/character"
 	"github.com/justin/echome-be/internal/service/conversation"
-	"github.com/justin/echome-be/internal/service/session"
 	"github.com/justin/echome-be/internal/service/webrtc"
+)
+
+import (
+	_ "github.com/justin/echome-be/docs"
 )
 
 // Injectors from wire.go:
@@ -26,16 +29,13 @@ func InitializeApplication(configPath2 string) (*app.Application, error) {
 	configConfig := config.Load(configPath2)
 	memoryCharacterRepository := infrastructure.NewMemoryCharacterRepository()
 	characterService := character.NewCharacterService(memoryCharacterRepository)
-	memorySessionRepository := infrastructure.NewMemorySessionRepository()
-	memoryMessageRepository := infrastructure.NewMemoryMessageRepository()
+	webRTCService := webrtc.NewWebRTCService()
 	aliClient, err := client.NewAIServiceFromConfig(configConfig)
 	if err != nil {
 		return nil, err
 	}
-	sessionService := session.NewSessionService(memorySessionRepository, memoryMessageRepository, aliClient, characterService)
-	webRTCService := webrtc.NewWebRTCService()
-	conversationService := conversation.NewConversationService(aliClient, characterService, sessionService, memoryMessageRepository)
-	handlers := interfaces.NewHandlers(characterService, sessionService, webRTCService, aliClient, conversationService)
+	conversationService := conversation.NewConversationService(aliClient, characterService)
+	handlers := interfaces.NewHandlers(characterService, webRTCService, aliClient, conversationService)
 	application := app.NewApplication(configConfig, handlers)
 	return application, nil
 }

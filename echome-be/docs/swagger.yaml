@@ -15,33 +15,6 @@ definitions:
       voice_config:
         $ref: '#/definitions/domain.VoiceProfile'
     type: object
-  domain.Message:
-    properties:
-      content:
-        type: string
-      id:
-        type: string
-      sender:
-        description: '''user'' or ''character'''
-        type: string
-      sessionID:
-        type: string
-      timestamp:
-        type: string
-    type: object
-  domain.Session:
-    properties:
-      characterID:
-        type: string
-      createdAt:
-        type: string
-      id:
-        type: string
-      lastActivity:
-        type: string
-      userID:
-        type: string
-    type: object
   domain.VoiceProfile:
     properties:
       custom_params:
@@ -81,184 +54,6 @@ info:
   title: EchoMe API
   version: "1.0"
 paths:
-  /api/sessions:
-    get:
-      consumes:
-      - application/json
-      description: 获取指定用户的所有会话
-      parameters:
-      - description: 用户ID
-        in: query
-        name: userId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/domain.Session'
-            type: array
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: 获取用户会话列表
-      tags:
-      - sessions
-    post:
-      consumes:
-      - application/json
-      description: 创建一个新的用户会话
-      parameters:
-      - description: 会话创建请求
-        in: body
-        name: request
-        required: true
-        schema:
-          properties:
-            characterId:
-              type: string
-            userId:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/domain.Session'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: 创建新会话
-      tags:
-      - sessions
-  /api/sessions/{id}:
-    get:
-      consumes:
-      - application/json
-      description: 根据ID获取特定会话的详细信息
-      parameters:
-      - description: 会话ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/domain.Session'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: 获取会话详情
-      tags:
-      - sessions
-  /api/sessions/{id}/messages:
-    get:
-      consumes:
-      - application/json
-      description: 获取特定会话的所有消息
-      parameters:
-      - description: 会话ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/domain.Message'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: 获取会话消息
-      tags:
-      - sessions
-    post:
-      consumes:
-      - application/json
-      description: 向特定会话发送消息
-      parameters:
-      - description: 会话ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 消息内容
-        in: body
-        name: request
-        required: true
-        schema:
-          properties:
-            content:
-              type: string
-            sender:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/domain.Message'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: 发送消息
-      tags:
-      - sessions
   /characters:
     get:
       consumes:
@@ -276,13 +71,46 @@ paths:
       summary: 获取所有角色
       tags:
       - characters
+    post:
+      consumes:
+      - application/json
+      description: 创建一个新角色
+      parameters:
+      - description: 角色信息
+        in: body
+        name: character
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Character'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Character'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 创建角色
+      tags:
+      - characters
   /characters/{id}:
     get:
       consumes:
       - application/json
-      description: Get detailed information about a specific character
+      description: 根据角色ID获取详细信息
       parameters:
-      - description: Character ID
+      - description: 角色ID
         in: path
         name: id
         required: true
@@ -294,57 +122,12 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/domain.Character'
-      summary: Get character by ID
-      tags:
-      - characters
-  /characters/search:
-    get:
-      consumes:
-      - application/json
-      description: Search for roles by query string
-      parameters:
-      - description: Search query
-        in: query
-        name: q
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/domain.Character'
-            type: array
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Search roles
+      summary: 获取角色详情
       tags:
       - characters
   /ws/asr:
     get:
       description: 建立语音识别的WebSocket连接，用于实时语音转文本
-      parameters:
-      - default: paraformer-realtime-v2
-        description: ASR模型名称
-        in: query
-        name: model
-        type: string
-      - default: pcm
-        description: 音频格式
-        in: query
-        name: format
-        type: string
-      - default: 16000
-        description: 采样率
-        in: query
-        name: sample_rate
-        type: integer
       responses:
         "101":
           description: Switching Protocols
@@ -355,30 +138,10 @@ paths:
     get:
       description: 建立文本转语音的WebSocket连接，用于实时文本转语音
       parameters:
-      - default: qwen-tts-realtime
-        description: TTS模型名称
-        in: query
-        name: model
-        type: string
-      - default: Cherry
-        description: 语音ID
-        in: query
-        name: voice
-        type: string
-      - default: pcm
-        description: 响应格式
-        in: query
-        name: response_format
-        type: string
-      - default: 24000
-        description: 采样率
-        in: query
-        name: sample_rate
-        type: integer
-      - default: server_commit
-        description: 模式
-        in: query
-        name: mode
+      - description: 文本
+        in: path
+        name: text
+        required: true
         type: string
       responses:
         "101":
@@ -386,25 +149,16 @@ paths:
       summary: 文本转语音WebSocket连接
       tags:
       - websocket
-  /ws/voice-conversation/{sessionId}/{characterId}:
+  /ws/voice-conversation/{characterId}:
     get:
-      description: 建立语音对话的WebSocket连接，整合ASR、AI和TTS的完整流程
+      description: 建立WebSocket连接，用户发送文本，返回AI生成的语音消息（单用户模式，无会话管理）
       parameters:
-      - description: 会话ID
-        in: path
-        name: sessionId
-        required: true
-        type: string
       - description: 角色ID
         in: path
         name: characterId
         required: true
         type: string
-      - description: 用户ID
-        in: query
-        name: userId
-        type: string
-      - default: zh-CN
+      - default: zh
         description: 语言
         in: query
         name: language
@@ -424,7 +178,7 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: 语音对话WebSocket连接
+      summary: 单用户语音对话WebSocket连接
       tags:
       - websocket
   /ws/webrtc/{sessionId}/{userId}:

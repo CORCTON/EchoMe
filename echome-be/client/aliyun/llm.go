@@ -7,32 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
-
-	"github.com/justin/echome-be/internal/domain"
 )
-
-// AliClient encapsulates the client for Aliyun API
-type AliClient struct {
-	apiKey   string
-	endPoint string
-}
-
-// 确保AliClient实现domain.AIService接口
-var _ domain.AIService = (*AliClient)(nil)
-
-func NewAliClient(apiKey string, endpoint string) *AliClient {
-	if endpoint == "" {
-		endpoint = "https://dashscope.aliyuncs.com"
-	}
-	return &AliClient{apiKey: apiKey, endPoint: endpoint}
-}
 
 // BailianRequest 阿里云百炼API请求结构
 type BailianRequest struct {
-	Model      string                 `json:"model"`
-	Input      BailianInput           `json:"input"`
-	Parameters map[string]interface{} `json:"parameters,omitempty"`
+	Model      string         `json:"model"`
+	Input      BailianInput   `json:"input"`
+	Parameters map[string]any `json:"parameters,omitempty"`
 }
 
 // BailianInput 输入结构
@@ -66,8 +49,26 @@ type BailianErrorResponse struct {
 	RequestID string `json:"request_id"`
 }
 
-func (client *AliClient) GenerateResponse(ctx context.Context, userInput string, characterContext string) (string, error) {
-	// 构建消息列表，支持角色上下文
+func (client *AliClient) GenerateResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string) (string, error) {
+	// 输入验证
+	if strings.TrimSpace(userInput) == "" {
+		return "", fmt.Errorf("user input cannot be empty")
+	}
+
+	// 输入长度限制
+	if len(userInput) > 4000 {
+		return "", fmt.Errorf("user input too long (max 4000 characters)")
+	}
+
+	// 添加超时控制
+	timeout := 30 * time.Second
+	if client.timeout > 0 {
+		timeout = time.Duration(client.timeout) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// 构建消息列表，支持角色上下文和对话历史
 	messages := []BailianMessage{}
 
 	// 如果有角色上下文，添加系统消息
@@ -78,22 +79,50 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 		})
 	}
 
-	// 添加用户输入
+	// 添加对话历史消息
+	for _, msg := range conversationHistory {
+		role, roleOk := msg["role"]
+		content, contentOk := msg["content"]
+		// 确保角色和内容都存在，且角色是合法的
+		if roleOk && contentOk && (role == "user" || role == "assistant") {
+			messages = append(messages, BailianMessage{
+				Role:    role,
+				Content: content,
+			})
+		}
+	}
+
+	// 添加最新的用户输入
 	messages = append(messages, BailianMessage{
 		Role:    "user",
 		Content: userInput,
 	})
 
+	// 使用配置的LLM参数
+	model := "qwen-turbo"       // 默认值
+	maxTokens := 1500           // 默认值
+	temperature := float32(0.7) // 明确声明为float32类型
+
+	if client.llmModel != "" {
+		model = client.llmModel
+	}
+	if client.maxTokens > 0 {
+		maxTokens = client.maxTokens
+	}
+	if client.temperature > 0 {
+		temperature = client.temperature
+	}
+
 	// 构建请求
 	request := BailianRequest{
-		Model: "qwen-turbo", // 使用通义千问模型
+		Model: model,
 		Input: BailianInput{
 			Messages: messages,
 		},
 		Parameters: map[string]interface{}{
 			"result_format": "text",
-			"max_tokens":    1500,
-			"temperature":   0.7,
+			"max_tokens":    maxTokens,
+			"temperature":   float64(temperature), // 转换为float64
 		},
 	}
 
@@ -115,11 +144,12 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// 发送请求
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
+	// 发送请求（带重试机制）
+	retries := 3
+	if client.maxRetries > 0 {
+		retries = client.maxRetries
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := client.doRequestWithRetry(req, retries)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
@@ -152,4 +182,44 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	}
 
 	return response.Output.Text, nil
+}
+
+// doRequestWithRetry 执行HTTP请求并支持重试
+func (client *AliClient) doRequestWithRetry(req *http.Request, maxRetries int) (*http.Response, error) {
+	var lastErr error
+
+	for i := 0; i <= maxRetries; i++ {
+		// 克隆请求以支持重试（因为body可能被消费）
+		reqClone := req.Clone(req.Context())
+		if req.Body != nil {
+			// 重新设置body
+			if req.GetBody != nil {
+				body, err := req.GetBody()
+				if err != nil {
+					return nil, fmt.Errorf("failed to get request body: %w", err)
+				}
+				reqClone.Body = body
+			}
+		}
+
+		resp, err := client.httpClient.Do(reqClone)
+		if err == nil {
+			// 检查是否需要重试（5xx错误或429）
+			if resp.StatusCode < 500 && resp.StatusCode != 429 {
+				return resp, nil
+			}
+			resp.Body.Close()
+			lastErr = fmt.Errorf("server error: status %d", resp.StatusCode)
+		} else {
+			lastErr = err
+		}
+
+		// 如果不是最后一次重试，等待一段时间
+		if i < maxRetries {
+			backoff := time.Duration(i+1) * time.Second
+			time.Sleep(backoff)
+		}
+	}
+
+	return nil, fmt.Errorf("request failed after %d retries: %w", maxRetries, lastErr)
 }
