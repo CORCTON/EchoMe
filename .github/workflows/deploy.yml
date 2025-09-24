@@ -58,6 +58,11 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
+      - name: 计算仓库拥有者小写形式
+        id: meta
+        run: |
+          owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
       - name: 设置 QEMU
         uses: docker/setup-qemu-action@v3
       - name: 设置 Docker Buildx
@@ -88,10 +93,10 @@ jobs:
           file: ${{ matrix.service == 'be' && 'echome-be/Dockerfile' || 'echome-fe/Dockerfile' }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/echome-${{ matrix.service }}:latest
-            ghcr.io/${{ github.repository_owner }}/echome-${{ matrix.service }}:${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/echome-${{ matrix.service }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/echome-${{ matrix.service }}:buildcache,mode=max
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:latest
+            ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:buildcache,mode=max
 
   deploy:
     name: 远程部署
@@ -142,7 +147,7 @@ jobs:
         if: steps.should-deploy.outputs.deploy == 'true'
         run: |
           ssh -o StrictHostKeyChecking=no ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} \
-            "GHCR_USERNAME='${{ secrets.GHCR_USERNAME }}' GHCR_TOKEN='${{ secrets.GHCR_TOKEN }}' OWNER_LOWER='${{ github.repository_owner }}' SERVICE='${{ matrix.service }}' bash -s" <<'EOF'
+            "GHCR_USERNAME='${{ secrets.GHCR_USERNAME }}' GHCR_TOKEN='${{ secrets.GHCR_TOKEN }}' OWNER_LOWER='${{ steps.meta.outputs.owner_lower }}' SERVICE='${{ matrix.service }}' bash -s" <<'EOF'
           set -e          
           # GHCR 登录
           echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
