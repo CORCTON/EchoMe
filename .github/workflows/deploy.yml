@@ -126,11 +126,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           ALIYUN_API_KEY: ${{ secrets.ALIYUN_API_KEY }}
         run: |
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
-            "export ALIYUN_API_KEY='$ALIYUN_API_KEY' && \
-             export GHCR_USERNAME='$GHCR_USERNAME' && \
-             export GHCR_TOKEN='$GHCR_TOKEN' && \
-             bash -s" <<'EOF'
+          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST <<EOF
           set -e
           sudo mkdir -p /opt/echome
           cd /opt/echome
