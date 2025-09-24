@@ -141,7 +141,7 @@ jobs:
       - name: 复制部署文件
         if: steps.should-deploy.outputs.deploy == 'true'
         run: |
-          scp -o StrictHostKeyChecking=no deploy/docker-compose.yml ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:~/deploy/
+          scp -o StrictHostKeyChecking=no deploy/docker-compose.yml ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:~/
           
       - name: 部署 ${{ matrix.service }} 到服务器
         if: steps.should-deploy.outputs.deploy == 'true'
@@ -157,10 +157,10 @@ jobs:
           
           # 只拉取和重启指定的服务
           echo "拉取 echome-${SERVICE} 镜像..."
-          docker compose -f ~/deploy/docker-compose.yml pull echome-${SERVICE}
+          docker compose -f ~/docker-compose.yml pull echome-${SERVICE}
           
           echo "重启 echome-${SERVICE} 服务..."
-          docker compose -f ~/deploy/docker-compose.yml up -d echome-${SERVICE}
+          docker compose -f ~/docker-compose.yml up -d echome-${SERVICE}
           
           # 清理无用镜像
           docker image prune -f || true
