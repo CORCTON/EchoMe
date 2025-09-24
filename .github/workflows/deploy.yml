@@ -27,7 +27,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   SERVER_HOST: 115.190.101.38
-  DOCKER_COMPOSE_PATH: /opt/echome/deploy/docker-compose.yml
+  SERVER_USER: deploy
 
 jobs:
   changes:
@@ -58,37 +58,28 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      - name: 计算仓库拥有者小写形式
-        id: meta
-        run: |
-          owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
-          echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
-      - name: 判断是否跳过当前服务
+      - name: 设置 QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: 登录 GHCR 镜像仓库
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 判断是否跳过
         id: decide
         run: |
           svc=${{ matrix.service }}
           force=${{ github.event.inputs.force || 'false' }}
           be_changed='${{ needs.changes.outputs.be }}'
           fe_changed='${{ needs.changes.outputs.fe }}'
-          echo "service=$svc force=$force be=$be_changed fe=$fe_changed"
           if [ "$svc" = "be" ] && [ "$be_changed" != "true" ] && [ "$force" != "true" ]; then echo "skip=true" >> $GITHUB_OUTPUT; fi
           if [ "$svc" = "fe" ] && [ "$fe_changed" != "true" ] && [ "$force" != "true" ]; then echo "skip=true" >> $GITHUB_OUTPUT; fi
       - name: 跳过提示
         if: steps.decide.outputs.skip == 'true'
         run: echo "当前服务无变更且未强制执行，跳过构建。"
-      - name: 设置 QEMU
-        if: steps.decide.outputs.skip != 'true'
-        uses: docker/setup-qemu-action@v3
-      - name: 设置 Docker Buildx
-        if: steps.decide.outputs.skip != 'true'
-        uses: docker/setup-buildx-action@v3
-      - name: 登录 GHCR 镜像仓库
-        if: steps.decide.outputs.skip != 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: 构建并推送
         if: steps.decide.outputs.skip != 'true'
         uses: docker/build-push-action@v6
@@ -97,88 +88,77 @@ jobs:
           file: ${{ matrix.service == 'be' && 'echome-be/Dockerfile' || 'echome-fe/Dockerfile' }}
           push: true
           tags: |
-            ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:latest
-            ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:buildcache,mode=max
+            ghcr.io/${{ github.repository_owner }}/echome-${{ matrix.service }}:latest
+            ghcr.io/${{ github.repository_owner }}/echome-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/echome-${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/echome-${{ matrix.service }}:buildcache,mode=max
 
   deploy:
     name: 远程部署
     needs: [build-push, changes]
     runs-on: ubuntu-latest
-    # Deploy when build-push succeeded or when forced. This prevents skipping deployment when images were built
-    if: ${{ needs.build-push.result == 'success' || github.event.inputs.force == 'true' }}
+    strategy:
+      matrix:
+        service: [be, fe]
+      fail-fast: false
     steps:
-      - name: 准备 SSH 密码登录环境
+      - uses: actions/checkout@v4
+      - name: 判断是否需要部署
+        id: should-deploy
         run: |
-          sudo apt-get update -y && sudo apt-get install -y sshpass
-      - name: 计算仓库拥有者小写形式
-        id: meta
-        run: |
-          owner_lower=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
-          echo "owner_lower=$owner_lower" >> $GITHUB_OUTPUT
-      - name: 通过 SSH 远程部署
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ env.SERVER_HOST }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          ALIYUN_API_KEY: ${{ secrets.ALIYUN_API_KEY }}
-        run: |
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST <<EOF
-          set -e
-          sudo mkdir -p /opt/echome
-          cd /opt/echome
-          if [ ! -d deploy ]; then
-            mkdir deploy
-          fi
-          # 生成环境变量文件，传递敏感配置
-          echo "ALIYUN_API_KEY=$ALIYUN_API_KEY" > deploy/.env
-          echo "已生成 deploy/.env 文件用于传递敏感配置"
-          # 安装或重新安装 Docker（若未安装）
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "未检测到 Docker，开始执行安装脚本...";
-            TMP_SCRIPT=/tmp/install_docker.sh
-            (curl -fsSL https://gh-proxy.com/https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker-china.sh -o $TMP_SCRIPT || \
-             curl -fsSL https://gh-proxy.com/https://gist.githubusercontent.com/wusisu/38f800cacf58a84ca6d59e6347a8f6ae/raw/f4d01e1277f5c8aea4f3c9d7157393eac4e25848/install-docker.sh -o $TMP_SCRIPT) || { echo 'Download install script failed'; exit 2; }
-            chmod +x $TMP_SCRIPT
-            sudo bash $TMP_SCRIPT || { echo 'Docker install failed'; exit 3; }
-            echo "Docker 安装流程已执行完成。";
+          svc=${{ matrix.service }}
+          force=${{ github.event.inputs.force || 'false' }}
+          be_changed='${{ needs.changes.outputs.be }}'
+          fe_changed='${{ needs.changes.outputs.fe }}'
+          
+          should_deploy=false
+          if [ "$force" = "true" ]; then
+            should_deploy=true
+            echo "强制部署模式，部署 $svc"
+          elif [ "$svc" = "be" ] && [ "$be_changed" = "true" ]; then
+            should_deploy=true
+            echo "后端代码有变更，部署后端"
+          elif [ "$svc" = "fe" ] && [ "$fe_changed" = "true" ]; then
+            should_deploy=true
+            echo "前端代码有变更，部署前端"
           else
-            echo "远程主机已安装 Docker，跳过安装步骤。";
+            echo "$svc 无变更，跳过部署"
           fi
-          cat > deploy/docker-compose.yml <<'COMPOSE'
-          services:
-            echome-be:
-              image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-be:latest
-              container_name: echome-be
-              restart: unless-stopped
-              ports:
-                - "8081:8081"
-              env_file:
-                - .env
-            echome-fe:
-              image: ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-fe:latest
-              container_name: echome-fe
-              restart: unless-stopped
-              ports:
-                - "3000:3000"
-              depends_on:
-                - echome-be
-          networks:
-            default:
-              driver: bridge
-          COMPOSE
-          if [ -n "$GHCR_TOKEN" ] && [ -n "$GHCR_USERNAME" ]; then
-            echo "使用账号 $GHCR_USERNAME 登录 ghcr.io"
-            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin || { echo 'Docker 登录失败'; exit 4; }
-          else
-            echo "未提供 GHCR 凭据，将尝试匿名拉取（私有镜像可能失败）。"
-          fi
-          echo "拉取最新镜像..."
-          sudo docker compose -f deploy/docker-compose.yml pull
-          echo "重新创建并启动容器..."
-          sudo docker compose -f deploy/docker-compose.yml up -d
-          sudo docker image prune -f || true
+          
+          echo "deploy=$should_deploy" >> $GITHUB_OUTPUT
+
+      - name: 配置 SSH
+        if: steps.should-deploy.outputs.deploy == 'true'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: 复制部署文件
+        if: steps.should-deploy.outputs.deploy == 'true'
+        run: |
+          scp -o StrictHostKeyChecking=no deploy/docker-compose.yml ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:~/deploy/
+          
+      - name: 部署 ${{ matrix.service }} 到服务器
+        if: steps.should-deploy.outputs.deploy == 'true'
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} \
+            "GHCR_USERNAME='${{ secrets.GHCR_USERNAME }}' GHCR_TOKEN='${{ secrets.GHCR_TOKEN }}' OWNER_LOWER='${{ github.repository_owner }}' SERVICE='${{ matrix.service }}' bash -s" <<'EOF'
+          set -e          
+          # GHCR 登录
+          echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+
+          # 设置环境变量
+          export OWNER_LOWER="${OWNER_LOWER,,}"  # 转换为小写
+          
+          # 只拉取和重启指定的服务
+          echo "拉取 echome-${SERVICE} 镜像..."
+          docker compose -f ~/deploy/docker-compose.yml pull echome-${SERVICE}
+          
+          echo "重启 echome-${SERVICE} 服务..."
+          docker compose -f ~/deploy/docker-compose.yml up -d echome-${SERVICE}
+          
+          # 清理无用镜像
+          docker image prune -f || true
+          
+          echo "✓ echome-${SERVICE} 部署完成"
           EOF
