@@ -23,276 +23,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/sessions": {
-            "get": {
-                "description": "获取指定用户的所有会话",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "sessions"
-                ],
-                "summary": "获取用户会话列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "用户ID",
-                        "name": "userId",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/domain.Session"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "创建一个新的用户会话",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "sessions"
-                ],
-                "summary": "创建新会话",
-                "parameters": [
-                    {
-                        "description": "会话创建请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "characterId": {
-                                    "type": "string"
-                                },
-                                "userId": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/domain.Session"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/sessions/{id}": {
-            "get": {
-                "description": "根据ID获取特定会话的详细信息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "sessions"
-                ],
-                "summary": "获取会话详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "会话ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/domain.Session"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/sessions/{id}/messages": {
-            "get": {
-                "description": "获取特定会话的所有消息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "sessions"
-                ],
-                "summary": "获取会话消息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "会话ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/domain.Message"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "向特定会话发送消息",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "sessions"
-                ],
-                "summary": "发送消息",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "会话ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "消息内容",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "content": {
-                                    "type": "string"
-                                },
-                                "sender": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/domain.Message"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/characters": {
             "get": {
                 "description": "获取所有可用角色的列表",
@@ -369,50 +99,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/characters/search": {
-            "get": {
-                "description": "根据查询字符串搜索角色",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "characters"
-                ],
-                "summary": "搜索角色",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "搜索查询",
-                        "name": "q",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/domain.Character"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/characters/{id}": {
             "get": {
                 "description": "根据角色ID获取详细信息",
@@ -452,29 +138,6 @@ const docTemplate = `{
                     "websocket"
                 ],
                 "summary": "语音识别WebSocket连接",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "default": "paraformer-realtime-v2",
-                        "description": "ASR模型名称",
-                        "name": "model",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "pcm",
-                        "description": "音频格式",
-                        "name": "format",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 16000,
-                        "description": "采样率",
-                        "name": "sample_rate",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
@@ -492,38 +155,10 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "default": "qwen-tts-realtime",
-                        "description": "TTS模型名称",
-                        "name": "model",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "Cherry",
-                        "description": "语音ID",
-                        "name": "voice",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "pcm",
-                        "description": "响应格式",
-                        "name": "response_format",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 24000,
-                        "description": "采样率",
-                        "name": "sample_rate",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "server_commit",
-                        "description": "模式",
-                        "name": "mode",
-                        "in": "query"
+                        "description": "文本",
+                        "name": "text",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -533,21 +168,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/ws/voice-conversation/{sessionId}/{characterId}": {
+        "/ws/voice-conversation/{characterId}": {
             "get": {
-                "description": "建立语音对话的WebSocket连接，整合ASR、AI和TTS的完整流程",
+                "description": "建立WebSocket连接，用户发送文本，返回AI生成的语音消息（单用户模式，无会话管理）",
                 "tags": [
                     "websocket"
                 ],
-                "summary": "语音对话WebSocket连接",
+                "summary": "单用户语音对话WebSocket连接",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "会话ID",
-                        "name": "sessionId",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "description": "角色ID",
@@ -557,13 +185,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "用户ID",
-                        "name": "userId",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "default": "zh-CN",
+                        "default": "zh",
                         "description": "语言",
                         "name": "language",
                         "in": "query"
@@ -664,47 +286,6 @@ const docTemplate = `{
                 },
                 "voice_config": {
                     "$ref": "#/definitions/domain.VoiceProfile"
-                }
-            }
-        },
-        "domain.Message": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "sender": {
-                    "description": "'user' or 'character'",
-                    "type": "string"
-                },
-                "sessionID": {
-                    "type": "string"
-                },
-                "timestamp": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.Session": {
-            "type": "object",
-            "properties": {
-                "characterID": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "lastActivity": {
-                    "type": "string"
-                },
-                "userID": {
-                    "type": "string"
                 }
             }
         },

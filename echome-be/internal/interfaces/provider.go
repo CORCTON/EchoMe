@@ -10,7 +10,6 @@ var (
 	HandlerProviderSet = wire.NewSet(
 		NewHandlers,
 		NewCharacterHandlers,
-		NewSessionHandlers,
 		NewWebSocketHandlers,
 	)
 )

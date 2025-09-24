@@ -17,35 +17,10 @@ type Message struct {
 	Timestamp time.Time
 }
 
-// Session represents a chat session between a user and a character
-type Session struct {
-	ID           uuid.UUID
-	UserID       string
-	CharacterID  uuid.UUID
-	CreatedAt    time.Time
-	LastActivity time.Time
-}
-
-// SessionRepository defines the interface for session persistence
-type SessionRepository interface {
-	GetByID(id uuid.UUID) (*Session, error)
-	GetByUserID(userID string) ([]*Session, error)
-	Save(session *Session) error
-}
-
 // MessageRepository defines the interface for message persistence
 type MessageRepository interface {
 	GetBySessionID(sessionID uuid.UUID) ([]*Message, error)
 	Save(message *Message) error
-}
-
-// SessionService provides business logic for session operations
-type SessionService interface {
-	CreateSession(userID string, characterID uuid.UUID) (*Session, error)
-	GetSessionByID(id uuid.UUID) (*Session, error)
-	GetUserSessions(userID string) ([]*Session, error)
-	SendMessage(sessionID uuid.UUID, content string, sender string) (*Message, error)
-	GetSessionMessages(sessionID uuid.UUID) ([]*Message, error)
 }
 
 // ConversationService provides voice conversation functionality
@@ -60,21 +35,17 @@ type ConversationService interface {
 	GetCharacterVoiceConfig(characterID uuid.UUID) (*VoiceConfig, error)
 }
 
-// VoiceConversationRequest represents a voice conversation request
+// VoiceConversationRequest represents a voice conversation request (simplified single-user mode)
 type VoiceConversationRequest struct {
-	SessionID     uuid.UUID       `json:"session_id"`
-	CharacterID   uuid.UUID       `json:"character_id"`
 	WebSocketConn *websocket.Conn `json:"-"`
-	UserID        string          `json:"user_id"`
+	CharacterID   uuid.UUID       `json:"character_id"`
 	Language      string          `json:"language,omitempty"`
 }
 
-// TextMessageRequest represents a text message request
+// TextMessageRequest represents a text message request (simplified)
 type TextMessageRequest struct {
-	SessionID   uuid.UUID `json:"session_id"`
-	CharacterID uuid.UUID `json:"character_id"`
-	UserInput   string    `json:"user_input"`
-	UserID      string    `json:"user_id"`
+	UserInput string `json:"user_input"`
+	UserID    string `json:"user_id"`
 }
 
 // TextMessageResponse represents a text message response
@@ -92,11 +63,10 @@ type VoiceConfig struct {
 	Language  string     `json:"language"`
 }
 
-// AIRequest represents a request to AI service with context
+// AIRequest represents a request to AI service with context (simplified)
 type AIRequest struct {
 	UserInput        string     `json:"user_input"`
 	CharacterContext *Character `json:"character_context"`
-	SessionHistory   []*Message `json:"session_history"`
 	Language         string     `json:"language"`
 }
 

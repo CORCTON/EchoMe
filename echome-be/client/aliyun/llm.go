@@ -9,50 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/justin/echome-be/internal/domain"
 )
-
-// AliClient encapsulates the client for Aliyun API
-type AliClient struct {
-	apiKey      string
-	endPoint    string
-	timeout     int
-	maxRetries  int
-	httpClient  *http.Client
-	llmModel    string
-	maxTokens   int
-	temperature float32
-}
-
-// 确保AliClient实现domain.AIService接口
-var _ domain.AIService = (*AliClient)(nil)
-
-func NewAliClient(apiKey string, endpoint string, timeout int, maxRetries int, llmModel string, maxTokens int, temperature float32) *AliClient {
-	// 为超时配置设置默认值
-	httpTimeout := 30 * time.Second
-	if timeout > 0 {
-		httpTimeout = time.Duration(timeout) * time.Second
-	}
-	
-	return &AliClient{
-		apiKey:      apiKey,
-		endPoint:    endpoint,
-		timeout:     timeout,
-		maxRetries:  maxRetries,
-		llmModel:    llmModel,
-		maxTokens:   maxTokens,
-		temperature: temperature,
-		httpClient: &http.Client{
-			Timeout: httpTimeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 10,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		},
-	}
-}
 
 // BailianRequest 阿里云百炼API请求结构
 type BailianRequest struct {
@@ -92,7 +49,7 @@ type BailianErrorResponse struct {
 	RequestID string `json:"request_id"`
 }
 
-func (client *AliClient) GenerateResponse(ctx context.Context, userInput string, characterContext string) (string, error) {
+func (client *AliClient) GenerateResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string) (string, error) {
 	// 输入验证
 	if strings.TrimSpace(userInput) == "" {
 		return "", fmt.Errorf("user input cannot be empty")
@@ -110,8 +67,8 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	
-	// 构建消息列表，支持角色上下文
+
+	// 构建消息列表，支持角色上下文和对话历史
 	messages := []BailianMessage{}
 
 	// 如果有角色上下文，添加系统消息
@@ -122,7 +79,20 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 		})
 	}
 
-	// 添加用户输入
+	// 添加对话历史消息
+	for _, msg := range conversationHistory {
+		role, roleOk := msg["role"]
+		content, contentOk := msg["content"]
+		// 确保角色和内容都存在，且角色是合法的
+		if roleOk && contentOk && (role == "user" || role == "assistant") {
+			messages = append(messages, BailianMessage{
+				Role:    role,
+				Content: content,
+			})
+		}
+	}
+
+	// 添加最新的用户输入
 	messages = append(messages, BailianMessage{
 		Role:    "user",
 		Content: userInput,
@@ -132,7 +102,7 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	model := "qwen-turbo"       // 默认值
 	maxTokens := 1500           // 默认值
 	temperature := float32(0.7) // 明确声明为float32类型
-	
+
 	if client.llmModel != "" {
 		model = client.llmModel
 	}
@@ -142,7 +112,7 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	if client.temperature > 0 {
 		temperature = client.temperature
 	}
-	
+
 	// 构建请求
 	request := BailianRequest{
 		Model: model,
