@@ -12,11 +12,21 @@ type AIService interface {
 	// HandleASR 处理ASR请求
 	HandleASR(ctx context.Context, clientWS *websocket.Conn) error
 
-	// HandleTTS 处理TTS请求
-	HandleTTS(ctx context.Context, clientWS *websocket.Conn, config TTSConfig) error
+	// HandleTTS 处理TTS请求（从WebSocket读取文本）
+	HandleTTS(ctx context.Context, clientWS *websocket.Conn) error
+
+	// TextToSpeech 直接将文本转换为语音并发送到WebSocket
+	// @param ctx 上下文
+	// @param text 需要转换的文本
+	// @param clientWS WebSocket连接
+	TextToSpeech(ctx context.Context, text string, clientWS *websocket.Conn) error
 
 	// GenerateResponse 生成AI响应
-	GenerateResponse(ctx context.Context, userInput string, characterContext string) (string, error)
+	// @param ctx 上下文
+	// @param userInput 用户输入
+	// @param characterContext 角色上下文
+	// @param conversationHistory 对话历史，格式为[{"role": "user/assistant", "content": "内容"}, ...]
+	GenerateResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string) (string, error)
 }
 
 // ASRConfig 定义ASR配置参数

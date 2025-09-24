@@ -43,18 +43,7 @@ make wire
 ## 运行项目
 
 ```bash
-# 直接运行
-go run cmd/api/main.go
-
-# 或指定配置文件路径
-go run cmd/api/main.go -f config/etc/config.yaml
-
-# 构建并运行
-go build -o echome-be cmd/api/main.go
-./echome-be
-
-# 构建整个项目
-go build ./cmd/api/...
+make run
 ```
 
 ## 配置
@@ -69,8 +58,8 @@ go build ./cmd/api/...
 #### AI服务配置
 
 ##### 阿里云百炼配置
-- `albl.api_key`: 阿里云百炼API密钥
-- `albl.endpoint`: 阿里云百炼API端点
+- `aliyun.api_key`: 阿里云百炼API密钥
+- `aliyun.endpoint`: 阿里云百炼API端点
 
 ##### AI服务选择
 - `ai.service_type`: AI服务类型，可选值：`alibailian`
@@ -82,7 +71,6 @@ go build ./cmd/api/...
 
 ### 角色相关
 - `GET /api/characters`: 获取所有角色
-- `GET /api/characters/search?q={query}`: 搜索角色
 - `GET /api/characters/{id}`: 获取单个角色
 - `POST /api/characters`: 创建角色
 
@@ -97,7 +85,7 @@ go build ./cmd/api/...
 - `GET /ws/asr`: 语音识别WebSocket连接
 - `GET /ws/tts`: 文本转语音WebSocket连接
 - `GET /ws/webrtc/{sessionId}/{userId}`: WebRTC信令WebSocket连接
-- `GET /ws/voice-conversation/{sessionId}/{characterId}`: 语音对话WebSocket连接（整合ASR、AI、TTS完整流程）
+- `GET /ws/voice-conversation/{sessionId}/{characterId}`
 
 ### 系统端点
 - `GET /health`: 健康检查端点，返回系统状态和可用服务信息

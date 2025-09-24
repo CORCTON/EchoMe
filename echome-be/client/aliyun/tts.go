@@ -26,8 +26,9 @@ func DefaultTTSConfig() domain.TTSConfig {
 	}
 }
 
-// HandleTTS 通过阿里云百炼WebSocket处理TTS
-func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn, config domain.TTSConfig) error {
+// HandleTTS 通过阿里云百炼WebSocket处理TTS(从WebSocket读取文本)
+func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn) error {
+	config := DefaultTTSConfig()
 	aliWS, err := connectToAliyunTTS(client.apiKey, client.endPoint, config.Model)
 	if err != nil {
 		return err
@@ -57,6 +58,51 @@ func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn
 	})
 
 	return g.Wait()
+}
+
+// TextToSpeech 直接将文本转换为语音并发送到WebSocket
+func (client *AliClient) TextToSpeech(ctx context.Context, text string, clientWS *websocket.Conn) error {
+	config := DefaultTTSConfig()
+	aliWS, err := connectToAliyunTTS(client.apiKey, client.endPoint, config.Model)
+	if err != nil {
+		return fmt.Errorf("连接阿里云百炼TTS失败: %w", err)
+	}
+	defer aliWS.Close()
+
+	// 更新会话配置
+	if err := updateTTSSession(aliWS, config); err != nil {
+		return fmt.Errorf("更新TTS会话配置失败: %w", err)
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	// 直接发送文本到阿里云，不需要从客户端读取
+	g.Go(func() error {
+		// 发送文本
+		if err := sendTextToAliyun(aliWS, text, config.Mode); err != nil {
+			return fmt.Errorf("发送文本到阿里云百炼失败: %w", err)
+		}
+		// 发送完成信号
+		time.Sleep(100 * time.Millisecond) // 短暂延迟确保文本发送完成
+		return sendEvent(aliWS, "session.finish", nil)
+	})
+
+	// 从阿里云读取音频并发送到客户端
+	g.Go(func() error {
+		return handleAliyunToClient(ctx, aliWS, clientWS)
+	})
+
+	// 添加心跳保持连接
+	g.Go(func() error {
+		return keepAlive(ctx, aliWS)
+	})
+
+	// 等待所有goroutine完成
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("TTS处理失败: %w", err)
+	}
+
+	return nil
 }
 
 // connectToAliyunTTS 连接到阿里云百炼TTS WebSocket

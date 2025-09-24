@@ -27,11 +27,6 @@ func (s *characterService) GetAllCharacters() ([]*domain.Character, error) {
 	return s.characterRepo.GetAll()
 }
 
-// SearchCharacters searches for characters by query
-func (s *characterService) SearchCharacters(query string) ([]*domain.Character, error) {
-	return s.characterRepo.Search(query)
-}
-
 // CreateCharacter creates a new character
 func (s *characterService) CreateCharacter(character *domain.Character) error {
 	if character.ID == uuid.Nil {

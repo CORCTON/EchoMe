@@ -10,8 +10,8 @@ type Handlers struct {
 }
 
 // NewHandlers
-func NewHandlers(characterService domain.CharacterService, sessionService domain.SessionService, webRTCService domain.WebRTCService, aiService domain.AIService, conversationService domain.ConversationService) *Handlers {
-	router := NewRouter(characterService, sessionService, webRTCService, aiService, conversationService)
+func NewHandlers(characterService domain.CharacterService, webRTCService domain.WebRTCService, aiService domain.AIService, conversationService domain.ConversationService) *Handlers {
+	router := NewRouter(characterService, webRTCService, aiService, conversationService)
 	return &Handlers{
 		router: router,
 	}

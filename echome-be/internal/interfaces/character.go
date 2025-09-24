@@ -20,7 +20,6 @@ func NewCharacterHandlers(characterService domain.CharacterService) *CharacterHa
 // RegisterRoutes 注册角色相关路由
 func (h *CharacterHandlers) RegisterRoutes(e *echo.Echo) {
 	e.GET("/api/characters", h.GetCharacters)
-	e.GET("/api/characters/search", h.SearchCharacters)
 	e.GET("/api/characters/:id", h.GetCharacterByID)
 	e.POST("/api/characters", h.CreateCharacter)
 }
@@ -42,25 +41,6 @@ func (h *CharacterHandlers) GetCharacters(c echo.Context) error {
 	return response.Success(c, characters)
 }
 
-// SearchCharacters handles GET /api/characters/search
-// @Summary 搜索角色
-// @Description 根据查询字符串搜索角色
-// @Tags characters
-// @Accept json
-// @Produce json
-// @Param q query string true "搜索查询"
-// @Success 200 {array} domain.Character
-// @Failure 500 {object} map[string]string
-// @Router /characters/search [get]
-func (h *CharacterHandlers) SearchCharacters(c echo.Context) error {
-	query := c.QueryParam("q")
-	characters, err := h.characterService.SearchCharacters(query)
-	if err != nil {
-		return response.InternalError(c, "Failed to search characters", err.Error())
-	}
-
-	return response.Success(c, characters)
-}
 
 // GetCharacterByID handles GET /api/characters/:id
 // @Summary 获取角色详情

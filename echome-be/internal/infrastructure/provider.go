@@ -11,9 +11,5 @@ var (
 	RepositoryProviderSet = wire.NewSet(
 		NewMemoryCharacterRepository,
 		wire.Bind(new(domain.CharacterRepository), new(*MemoryCharacterRepository)),
-		NewMemorySessionRepository,
-		wire.Bind(new(domain.SessionRepository), new(*MemorySessionRepository)),
-		NewMemoryMessageRepository,
-		wire.Bind(new(domain.MessageRepository), new(*MemoryMessageRepository)),
 	)
 )

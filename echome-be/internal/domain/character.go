@@ -23,14 +23,13 @@ type VoiceProfile struct {
 }
 type CharacterRepository interface {
 	GetByID(id uuid.UUID) (*Character, error)
-	GetByName(name string) (*Character, error)
 	GetAll() ([]*Character, error)
-	Search(query string) ([]*Character, error)
 	Save(character *Character) error
 }
 type CharacterService interface {
+	// GetCharacterByID 根据角色ID获取角色配置
 	GetCharacterByID(id uuid.UUID) (*Character, error)
 	GetAllCharacters() ([]*Character, error)
-	SearchCharacters(query string) ([]*Character, error)
+	// CreateChaaracter 创建角色
 	CreateCharacter(character *Character) error
 }

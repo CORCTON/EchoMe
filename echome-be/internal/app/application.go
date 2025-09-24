@@ -100,7 +100,7 @@ func (a *Application) validateRoutes() error {
 		"/ws/asr",
 		"/ws/tts",
 		"/ws/webrtc/:sessionId/:userId",
-		"/ws/voice-conversation/:sessionId/:characterId",
+		"/ws/voice-conversation/:characterId",
 		"/health",
 	}
 
@@ -139,18 +139,18 @@ func (a *Application) healthCheckHandler(c echo.Context) error {
 	// Check server health (basic check - if we're handling this request, server is up)
 	serverStatus := "running"
 	services["server"] = map[string]string{
-		"status":  serverStatus,
-		"port":    a.config.Server.Port,
+		"status":   serverStatus,
+		"port":     a.config.Server.Port,
 		"protocol": "http",
 	}
 
 	// Check AI service configuration
 	aiserviceStatus := "configured"
 	aiserviceDetails := map[string]string{
-		"status":      aiserviceStatus,
-		"type":        a.config.AI.ServiceType,
-		"timeout":     fmt.Sprintf("%dms", a.config.AI.Timeout),
-		"maxRetries":  fmt.Sprintf("%d", a.config.AI.MaxRetries),
+		"status":     aiserviceStatus,
+		"type":       a.config.AI.ServiceType,
+		"timeout":    fmt.Sprintf("%dms", a.config.AI.Timeout),
+		"maxRetries": fmt.Sprintf("%d", a.config.AI.MaxRetries),
 	}
 
 	// If using Aliyun service, check key and endpoint presence
@@ -195,11 +195,11 @@ func (a *Application) healthCheckHandler(c echo.Context) error {
 		"services":  services,
 		"endpoints": map[string][]string{
 			"websocket": {
-				"/ws/asr",
-				"/ws/tts",
-				"/ws/webrtc/:sessionId/:userId",
-				"/ws/voice-conversation/:sessionId/:characterId",
-			},
+			"/ws/asr",
+			"/ws/tts",
+			"/ws/webrtc/:sessionId/:userId",
+			"/ws/voice-conversation/:characterId",
+		},
 			"api": {
 				"/health",
 				"/swagger/*",

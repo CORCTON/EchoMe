@@ -34,7 +34,7 @@ func (h *WebSocketHandlers) RegisterRoutes(e *echo.Echo) {
 	e.GET("/ws/asr", h.HandleASRWebSocket)
 	e.GET("/ws/tts", h.HandleTTSWebSocket)
 	e.GET("/ws/webrtc/:sessionId/:userId", h.HandleWebRTCWebSocket)
-	e.GET("/ws/voice-conversation/:sessionId/:characterId", h.HandleVoiceConversationWebSocket)
+	e.GET("/ws/voice-conversation/:characterId", h.HandleVoiceConversationWebSocket)
 }
 
 // HandleASRWebSocket handles ASR WebSocket connection
@@ -67,12 +67,8 @@ func (h *WebSocketHandlers) HandleASRWebSocket(c echo.Context) error {
 // HandleTTSWebSocket handles TTS WebSocket connection
 // @Summary 文本转语音WebSocket连接
 // @Description 建立文本转语音的WebSocket连接，用于实时文本转语音
+// @Param text path string true "文本"
 // @Tags websocket
-// @Param model query string false "TTS模型名称" default(qwen-tts-realtime)
-// @Param voice query string false "语音ID" default(Cherry)
-// @Param response_format query string false "响应格式" default(pcm)
-// @Param sample_rate query int false "采样率" default(24000)
-// @Param mode query string false "模式" default(server_commit)
 // @Success 101
 // @Router /ws/tts [get]
 func (h *WebSocketHandlers) HandleTTSWebSocket(c echo.Context) error {
@@ -85,49 +81,8 @@ func (h *WebSocketHandlers) HandleTTSWebSocket(c echo.Context) error {
 		return err
 	}
 	defer ws.Close()
-
-	// Parse query parameters for TTS configuration
-	model := c.QueryParam("model")
-	if model == "" {
-		model = "qwen-tts-realtime"
-	}
-
-	voice := c.QueryParam("voice")
-	if voice == "" {
-		voice = "Cherry"
-	}
-
-	responseFormat := c.QueryParam("response_format")
-	if responseFormat == "" {
-		responseFormat = "pcm"
-	}
-
-	sampleRate := 24000
-	if sr := c.QueryParam("sample_rate"); sr != "" {
-		if parsed, err := parseIntParam(sr); err == nil {
-			sampleRate = parsed
-		}
-	}
-
-	mode := c.QueryParam("mode")
-	if mode == "" {
-		mode = "server_commit"
-	}
-
-	// Create TTS configuration
-	ttsConfig := domain.TTSConfig{
-		Model:          model,
-		Voice:          voice,
-		ResponseFormat: responseFormat,
-		SampleRate:     sampleRate,
-		Mode:           mode,
-	}
-
-	log.Printf("Starting TTS WebSocket with config: model=%s, voice=%s, format=%s, sample_rate=%d, mode=%s",
-		ttsConfig.Model, ttsConfig.Voice, ttsConfig.ResponseFormat, ttsConfig.SampleRate, ttsConfig.Mode)
-
 	// Use AI service to handle TTS WebSocket connection
-	if err := h.aiService.HandleTTS(c.Request().Context(), ws, ttsConfig); err != nil {
+	if err := h.aiService.HandleTTS(c.Request().Context(), ws); err != nil {
 		log.Printf("TTS WebSocket error: %v", err)
 		return err
 	}
@@ -149,12 +104,12 @@ func (h *WebSocketHandlers) HandleTTSWebSocket(c echo.Context) error {
 func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 	sessionID, err := uuid.Parse(c.Param("sessionId"))
 	if err != nil {
-		return response.BadRequest(c,"Invalid session ID")
+		return response.BadRequest(c, "Invalid session ID")
 	}
 
 	userID := c.Param("userId")
 	if userID == "" {
-		return response.BadRequest(c,"User ID is required")
+		return response.BadRequest(c, "User ID is required")
 	}
 
 	// Upgrade HTTP connection to WebSocket
@@ -209,43 +164,30 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 	return nil
 }
 
-// HandleVoiceConversationWebSocket handles voice conversation WebSocket connection
-// @Summary 语音对话WebSocket连接
-// @Description 建立语音对话的WebSocket连接，整合ASR、AI和TTS的完整流程
+// HandleVoiceConversationWebSocket handles text input and returns AI voice message via WebSocket
+// @Summary 单用户语音对话WebSocket连接
+// @Description 建立WebSocket连接，用户发送文本，返回AI生成的语音消息（单用户模式，无会话管理）
 // @Tags websocket
-// @Param sessionId path string true "会话ID"
 // @Param characterId path string true "角色ID"
-// @Param userId query string false "用户ID"
-// @Param language query string false "语言" default(zh-CN)
+// @Param language query string false "语言" default(zh)
 // @Success 101
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /ws/voice-conversation/{sessionId}/{characterId} [get]
+// @Router /ws/voice-conversation/{characterId} [get]
 func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) error {
 	log.Printf("Voice conversation WebSocket connection requested")
 
-	// Parse path parameters
-	sessionID, err := uuid.Parse(c.Param("sessionId"))
-	if err != nil {
-		log.Printf("Invalid session ID: %v", err)
-		return response.BadRequest(c,"Invalid session ID")
-	}
-
-	characterID, err := uuid.Parse(c.Param("characterId"))
-	if err != nil {
-		log.Printf("Invalid character ID: %v", err)
-		return response.BadRequest(c,"Invalid character ID")
+	// Parse path parameters - 使用正确的参数名
+	characterId := c.Param("characterId")
+	if characterId == "" {
+		log.Printf("Missing character ID")
+		return response.BadRequest(c, "Character ID is required")
 	}
 
 	// Parse query parameters
-	userID := c.QueryParam("userId")
-	if userID == "" {
-		userID = "anonymous" // Default user ID if not provided
-	}
-
 	language := c.QueryParam("language")
 	if language == "" {
-		language = "zh-CN"
+		language = "zh"
 	}
 
 	// Upgrade HTTP connection to WebSocket
@@ -254,16 +196,36 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 		log.Printf("Failed to upgrade to WebSocket: %v", err)
 		return err
 	}
+	defer ws.Close()
 
-	log.Printf("Starting voice conversation: session=%s, character=%s, user=%s, language=%s",
-		sessionID, characterID, userID, language)
+	// Send connection established message
+	if err := ws.WriteJSON(map[string]any{
+		"type":        "connection_established",
+		"language":    language,
+		"characterId": characterId,
+		"timestamp":   time.Now(),
+	}); err != nil {
+		log.Printf("Failed to send connection established message: %v", err)
+		return err
+	}
 
-	// Create voice conversation request
+	// 验证characterId格式并解析为UUID
+	characterUUID, err := uuid.Parse(characterId)
+	if err != nil {
+		log.Printf("Invalid characterId format: %v", err)
+		return response.BadRequest(c, "Invalid character ID format")
+	}
+	
+	// 检查是否为nil UUID
+	if characterUUID == uuid.Nil {
+		log.Printf("Nil character ID provided")
+		return response.BadRequest(c, "Character ID cannot be nil")
+	}
+
+	// Create simplified voice conversation request
 	voiceConvReq := &domain.VoiceConversationRequest{
-		SessionID:     sessionID,
-		CharacterID:   characterID,
 		WebSocketConn: ws,
-		UserID:        userID,
+		CharacterID:   characterUUID,
 		Language:      language,
 	}
 
@@ -275,11 +237,8 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 			"type":    "error",
 			"message": "Failed to start voice conversation: " + err.Error(),
 		})
-		ws.Close()
 		return err
 	}
-
-	log.Printf("Voice conversation completed for session %s", sessionID)
 	return nil
 }
 
@@ -321,13 +280,4 @@ func upgradeToWebSocket(c echo.Context) (*websocket.Conn, error) {
 	}()
 
 	return conn, nil
-}
-
-// parseIntParam parses an integer parameter from string
-func parseIntParam(param string) (int, error) {
-	var result int
-	if _, err := fmt.Sscanf(param, "%d", &result); err != nil {
-		return 0, err
-	}
-	return result, nil
 }
