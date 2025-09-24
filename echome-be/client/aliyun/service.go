@@ -1,6 +1,7 @@
 package aliyun
 
 import (
+	"crypto/tls"
 	"net/http"
 	"time"
 
@@ -43,6 +44,9 @@ func NewAliClient(apiKey string, endpoint string, timeout int, maxRetries int, l
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 10,
 				IdleConnTimeout:     90 * time.Second,
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true, // 临时禁用TLS验证
+				},
 			},
 		},
 	}
