@@ -162,21 +162,14 @@
                 }
             }
         },
-        "/ws/voice-conversation/{characterId}": {
+        "/ws/voice-conversation": {
             "get": {
-                "description": "建立WebSocket连接，用户发送文本，返回AI生成的语音消息（单用户模式，无会话管理）",
+                "description": "建立WebSocket连接，用户通过WebSocket消息发送语音或文本，返回AI生成的响应",
                 "tags": [
                     "websocket"
                 ],
-                "summary": "单用户语音对话WebSocket连接",
+                "summary": "语音对话WebSocket连接",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "description": "角色ID",
-                        "name": "characterId",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "default": "zh",

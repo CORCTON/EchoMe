@@ -44,7 +44,7 @@ func main() {
 	log.Println("  - /ws/asr (Automatic Speech Recognition)")
 	log.Println("  - /ws/tts (Text-to-Speech)")
 	log.Println("  - /ws/webrtc/:sessionId/:userId (WebRTC Signaling)")
-	log.Println("  - /ws/voice-conversation/:characterId (Voice Conversation)")
+	log.Println("  - /ws/voice-conversation (Voice Conversation)")
 	log.Println("✓ Health check endpoint available at /health")
 	log.Println("✓ API documentation available at /swagger/")
 
