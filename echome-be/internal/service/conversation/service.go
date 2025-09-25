@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/client/aliyun"
 	"github.com/justin/echome-be/internal/domain"
-	"github.com/justin/echome-be/internal/infrastructure"
 )
 
 // ConversationService 会话服务实现
@@ -118,10 +117,6 @@ func (s *ConversationService) ProcessTextMessage(ctx context.Context, req *domai
 
 // StartVoiceConversation 开始语音会话
 func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *domain.VoiceConversationRequest) error {
-	if req.WebSocketConn == nil {
-		return WrapError(ErrCodeInvalidInput, "缺少 WebSocket 连接", nil)
-	}
-
 	// 角色ID可以为空，将在handleSimpleVoiceConversationFlow中从JSON消息获取
 	var character *domain.Character
 	var err error
@@ -147,20 +142,18 @@ func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *d
 		}
 	}
 
-	return s.handleSimpleVoiceConversationFlow(ctx, req.WebSocketConn, character, req.Language)
+	return s.handleSimpleVoiceConversationFlow(ctx, req.SafeConn, character, req.Language)
 }
 
 // handleSimpleVoiceConversationFlow 处理语音对话流程
-func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Context, conn *websocket.Conn, character *domain.Character, language string) error {
+func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Context, sc domain.WebSocketConn, character *domain.Character, language string) error {
 	log.Println("Starting voice conversation flow with character:", character.ID)
 
 	conversationCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	sc := infrastructure.NewSafeConn(conn)
-	defer sc.Close()
 
 	for {
-		messageType, message, err := sc.Underlying().ReadMessage()
+		messageType, message, err := sc.ReadMessage()
 		if err != nil {
 			log.Printf("Error reading WebSocket message: %v", err)
 
@@ -278,7 +271,7 @@ func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Cont
 
 func (s *ConversationService) handleStreamingConversation(
 	ctx context.Context,
-	sc *infrastructure.SafeConn,
+	sc domain.WebSocketConn,
 	userInput string,
 	characterContext string,
 	conversationHistory []map[string]string,

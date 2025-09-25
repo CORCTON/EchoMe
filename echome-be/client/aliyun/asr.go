@@ -28,7 +28,6 @@ func DefaultASRConfig() domain.ASRConfig {
 func sendHeartbeat(ctx context.Context, ws *websocket.Conn, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	
 	for {
 		select {
 		case <-ctx.Done():
@@ -43,7 +42,7 @@ func sendHeartbeat(ctx context.Context, ws *websocket.Conn, interval time.Durati
 }
 
 // HandleASR 通过阿里云Model Studio Paraformer处理语音识别
-func (client *AliClient) HandleASR(ctx context.Context, clientWS *websocket.Conn) error {
+func (client *AliClient) HandleASR(ctx context.Context, clientWS domain.WebSocketConn) error {
 	// 连接到阿里云Model Studio ASR WebSocket
 	asrWS, taskID, err := connectToModelStudioASR(client.apiKey, DefaultASRConfig())
 	if err != nil {
@@ -170,7 +169,7 @@ func connectToModelStudioASR(apiKey string, config domain.ASRConfig) (*websocket
 }
 
 // forwardAudioToModelStudio 转发音频数据到阿里云WebSocket ASR
-func forwardAudioToModelStudio(ctx context.Context, clientWS, asrWS *websocket.Conn, taskID string) error {
+func forwardAudioToModelStudio(ctx context.Context, clientWS domain.WebSocketConn, asrWS *websocket.Conn, taskID string) error {
 	defer func() {
 		fmt.Println("音频发送结束，发送finish-task指令")
 		// 发送结束信号 - 根据文档格式，使用相同的taskID
@@ -233,9 +232,9 @@ func forwardAudioToModelStudio(ctx context.Context, clientWS, asrWS *websocket.C
 }
 
 // handleModelStudioASRResults 处理阿里云WebSocket ASR识别结果
-func handleModelStudioASRResults(ctx context.Context, asrWS, clientWS *websocket.Conn) error {
+func handleModelStudioASRResults(ctx context.Context, asrWS *websocket.Conn, clientWS domain.WebSocketConn) error {
 	resultReceived := false
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -331,8 +330,8 @@ func handleModelStudioASRResults(ctx context.Context, asrWS, clientWS *websocket
 						fmt.Printf("ASR任务失败详情: 代码=%s, 消息=%s\n", errorCode, errorMessage)
 						// 发送错误信息给客户端
 						clientWS.WriteJSON(map[string]any{
-							"type":        "asr_error",
-							"error_code":  errorCode,
+							"type":          "asr_error",
+							"error_code":    errorCode,
 							"error_message": errorMessage,
 						})
 						return fmt.Errorf("ASR任务失败: %s - %s", errorCode, errorMessage)

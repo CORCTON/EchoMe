@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
+	"github.com/justin/echome-be/internal/infrastructure"
 	"github.com/justin/echome-be/internal/response"
 	"github.com/labstack/echo/v4"
 )
@@ -52,8 +53,6 @@ func (h *WebSocketHandlers) HandleASRWebSocket(c echo.Context) error {
 		log.Printf("Failed to upgrade to WebSocket: %v", err)
 		return err
 	}
-	defer ws.Close()
-
 	// Use AI service to handle ASR WebSocket connection
 	if err := h.aiService.HandleASR(c.Request().Context(), ws); err != nil {
 		log.Printf("ASR WebSocket error: %v", err)
@@ -174,7 +173,7 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 // @Failure 500 {object} map[string]string
 // @Router /ws/voice-conversation [get]
 func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) error {
-	log.Printf("Voice conversation WebSocket connection requested")
+	log.Println("Voice conversation WebSocket connection requested")
 
 	// 获取查询参数
 	language := c.QueryParam("language")
@@ -185,10 +184,8 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 	// 升级到WebSocket
 	ws, err := upgradeToWebSocket(c)
 	if err != nil {
-			log.Printf("Failed to upgrade to WebSocket: %v", err)
 			return err
 	}
-	defer ws.Close()
 
 	// 发送连接建立消息
 	if err := ws.WriteJSON(map[string]any{
@@ -196,19 +193,17 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 			"language":  language,
 			"timestamp": time.Now(),
 	}); err != nil {
-			log.Printf("Failed to send connection established message: %v", err)
 			return err
 	}
 
 	// 创建语音对话请求
 	voiceConvReq := &domain.VoiceConversationRequest{
-			WebSocketConn: ws,
+			SafeConn: ws,
 			Language:      language,
 	}
 
 	// 启动语音对话
 	if err := h.conversationService.StartVoiceConversation(c.Request().Context(), voiceConvReq); err != nil {
-			log.Printf("Voice conversation error: %v", err)
 			_ = ws.WriteJSON(map[string]string{
 					"type":    "error",
 					"message": "Failed to start voice conversation: " + err.Error(),
@@ -219,7 +214,7 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 }
 
 // 升级HTTP连接到WebSocket
-func upgradeToWebSocket(c echo.Context) (*websocket.Conn, error) {
+func upgradeToWebSocket(c echo.Context) (*infrastructure.SafeConn, error) {
 	upgrader := websocket.Upgrader{
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
@@ -235,16 +230,14 @@ func upgradeToWebSocket(c echo.Context) (*websocket.Conn, error) {
 
 	conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
-			log.Printf("WebSocket升级失败: %v", err)
 			return nil, fmt.Errorf("WebSocket升级失败: %w", err)
 	}
 
 	go func() {
 			<-c.Request().Context().Done()
-			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			time.Sleep(500 * time.Millisecond)
-			conn.Close()
 	}()
 
-	return conn, nil
+	return infrastructure.NewSafeConn(conn), nil
 }

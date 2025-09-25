@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 )
 
 // Message represents a chat message
@@ -37,7 +36,7 @@ type ConversationService interface {
 
 // VoiceConversationRequest represents a voice conversation request (simplified single-user mode)
 type VoiceConversationRequest struct {
-	WebSocketConn *websocket.Conn `json:"-"`
+	SafeConn WebSocketConn `json:"-"`
 	CharacterID   uuid.UUID       `json:"character_id"`
 	Language      string          `json:"language,omitempty"`
 }

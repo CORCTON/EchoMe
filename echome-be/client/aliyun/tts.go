@@ -12,7 +12,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
-	"github.com/justin/echome-be/internal/infrastructure"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -28,7 +27,7 @@ func DefaultTTSConfig() domain.TTSConfig {
 }
 
 // HandleTTS 通过阿里云百炼WebSocket处理TTS(从WebSocket读取文本)
-func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn) error {
+func (client *AliClient) HandleTTS(ctx context.Context, clientWS domain.WebSocketConn) error {
 	config := DefaultTTSConfig()
 	aliWS, err := connectToAliyunTTS(client.apiKey, client.endPoint, config.Model)
 	if err != nil {
@@ -44,13 +43,13 @@ func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn
 	g, ctx := errgroup.WithContext(ctx)
 
 	// 从客户端读取文本并发送到阿里云
-	g.Go(func() error {
-		return handleClientToAliyun(ctx, clientWS, aliWS, config.Mode)
-	})
+g.Go(func() error {
+	return handleClientToAliyun(ctx, clientWS, aliWS, config.Mode)
+})
 
 	// 从阿里云读取音频并发送到客户端
 	g.Go(func() error {
-		return handleAliyunToClient(ctx, aliWS, infrastructure.NewSafeConn(clientWS))
+		return handleAliyunToClient(ctx, aliWS, clientWS)
 	})
 
 	// 添加心跳保持连接
@@ -61,7 +60,7 @@ func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn
 	return g.Wait()
 }
 
-func (client *AliClient) TextToSpeech(ctx context.Context, text string, writer domain.WSWriter) error {
+func (client *AliClient) TextToSpeech(ctx context.Context, text string, writer domain.WebSocketConn) error {
 	config := DefaultTTSConfig()
 	aliWS, err := connectToAliyunTTS(client.apiKey, client.endPoint, config.Model)
 	if err != nil {
@@ -84,7 +83,7 @@ func (client *AliClient) TextToSpeech(ctx context.Context, text string, writer d
 		return sendEvent(aliWS, "session.finish", nil)
 	})
 
-	// 从阿里云接收音频并写入 SafeConn
+	// 从阿里云接收音频并写入WebSocketConn
 	g.Go(func() error {
 		return handleAliyunToClient(ctx, aliWS, writer)
 	})
@@ -233,7 +232,7 @@ func sendEvent(aliWS *websocket.Conn, eventType string, data map[string]interfac
 }
 
 // handleClientToAliyun 处理从客户端到阿里云百炼的文本传输
-func handleClientToAliyun(ctx context.Context, clientWS, aliWS *websocket.Conn, mode string) error {
+func handleClientToAliyun(ctx context.Context, clientWS domain.WebSocketConn, aliWS *websocket.Conn, mode string) error {
 	defer func() {
 		// 发送会话结束信号
 		sendEvent(aliWS, "session.finish", nil)
@@ -300,7 +299,7 @@ func sendTextToAliyun(aliWS *websocket.Conn, text, mode string) error {
 }
 
 // handleAliyunToClient 处理从阿里云百炼到客户端的音频传输
-func handleAliyunToClient(ctx context.Context, aliWS *websocket.Conn, writer domain.WSWriter) error {
+func handleAliyunToClient(ctx context.Context, aliWS *websocket.Conn, writer domain.WebSocketConn) error {
 	for {
 		select {
 		case <-ctx.Done():
