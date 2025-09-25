@@ -9,24 +9,29 @@ import { getCharacterById } from "@/lib/characters";
 
 import {
   Message,
+  MessageActions,
   MessageAvatar,
   MessageContent,
 } from "@/components/ui/message";
+import { MessageActionsComponent } from "@/components/ui/message-actions";
 import { AudioAnimation } from "@/components/AudioAnimation";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { Loader } from "@/components/ui/loader";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Page() {
   const params = useParams<{ id: string }>();
   const characterId = params?.id ?? "";
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
+  const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
+    null,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { isVadReady, voiceActivity, transcript, initVad, resetTranscript } =
     useVadStore();
-  // 不需要的值不解构以避免未使用变量警告
   const {
     history,
     start,
@@ -36,9 +41,9 @@ export default function Page() {
     connect: connectLLM,
     interrupt,
     connection,
+    editMessage,
   } = useVoiceConversation();
 
-  // 获取当前角色信息
   const currentCharacter = useMemo(
     () => getCharacterById(characterId),
     [characterId],
@@ -49,13 +54,16 @@ export default function Page() {
       if (transcript && characterId) {
         resumeAudio();
         pushUserMessage(transcript);
-        start({
-          characterId,
-          messages: [
-            { role: "system", content: "You are a helpful assistant." },
-            { role: "user", content: transcript },
-          ],
-        });
+        const latestHistory = useVoiceConversation.getState().history;
+        const latestCharacter = getCharacterById(characterId);
+        const messages = [
+          {
+            role: "system" as const,
+            content: latestCharacter?.prompt || "You are a helpful assistant.",
+          },
+          ...latestHistory,
+        ];
+        start({ characterId, messages });
         resetTranscript();
       }
     };
@@ -84,12 +92,11 @@ export default function Page() {
     }
   }, [isVadReady, isConversationStarted, characterId, resumeAudio, connectLLM]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 需要实时监听自动滚动
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [history, transcript]);
+  });
 
   useEffect(() => {
     if (voiceActivity === VoiceActivity.Speaking && isPlaying) {
@@ -110,17 +117,12 @@ export default function Page() {
     if (isPlaying) {
       return VoiceActivity.Idle;
     }
-    // After the user speaks, VAD enters a 'Loading' state.
-    // This state persists until the next speech event.
-    // After the AI finishes speaking, we should display the 'Idle' state
-    // to show that the app is ready for user input, instead of the stale 'Loading' state.
     if (voiceActivity === VoiceActivity.Loading) {
       return VoiceActivity.Idle;
     }
     return voiceActivity;
   }, [isVadReady, isConversationStarted, voiceActivity, isPlaying]);
 
-  // 连接状态指示器颜色
   const connectionStatusColor = useMemo(() => {
     switch (connection) {
       case "connected":
@@ -135,17 +137,14 @@ export default function Page() {
   return (
     <div className=" bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800  flex items-center justify-center min-h-screen w-full border-none">
       <div className="w-full h-[100dvh] flex flex-col justify-center items-center relative">
-        {/* 角色信息头部 */}
         {currentCharacter && (
           <div className="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-center py-3 px-4">
               <div className="flex items-center space-x-3">
-                {/* 角色名称和连接状态 */}
                 <div className="flex items-center space-x-2">
                   <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
                     {currentCharacter.name}
                   </h1>
-                  {/* 连接状态小圆点 */}
                   <div
                     className={cn(
                       "w-3 h-3 rounded-full transition-colors duration-300",
@@ -162,37 +161,111 @@ export default function Page() {
         <div
           ref={scrollRef}
           className={cn(
-            "w-full flex-1 overflow-y-auto pb-40 no-scrollbar [mask-image:linear-gradient(to_bottom,black_calc(100%-10rem),transparent)] transition-all duration-300 ease-in-out pointer-events-auto",
-            currentCharacter ? "pt-20" : "pt-4", // 如果有角色信息头部，增加顶部padding
+            "w-full flex-1 overflow-y-auto pb-40 no-scrollbar [mask-image:linear-gradient(to_bottom,black_calc(100%-10rem),transparent)] transition-all duration-300 ease-in-out pointer-events-auto relative z-20",
+            currentCharacter ? "pt-20" : "pt-4",
             { "opacity-60 blur-sm": !isUiReady },
           )}
         >
-          <div className="px-4 space-y-4 mx-auto w-[80vw]">
-            {history.map((msg, index) => (
-              <Message
-                key={`${msg.role}-${index}`}
-                className={cn("items-start gap-4", {
-                  "justify-end": msg.role === "user",
-                  "justify-start": msg.role === "assistant",
-                })}
-              >
-                {msg.role === "assistant" && currentCharacter && (
-                  <MessageAvatar
-                    src={currentCharacter.image}
-                    alt={currentCharacter.name}
-                    fallback={currentCharacter.name.charAt(0)}
-                  />
-                )}
-                <MessageContent
-                  className={cn(
-                    { "bg-white": msg.role === "user" },
-                    { "bg-transparent p-0": msg.role === "assistant" },
-                  )}
-                >
-                  {msg.content}
-                </MessageContent>
-              </Message>
-            ))}
+          <div className="px-4 space-y-4 mx-auto w-full max-w-4xl sm:px-6 md:px-8">
+            {history
+              .filter((msg) => msg.role !== "system")
+              .map((msg, index) => {
+                const isLastAssistantMessage =
+                  msg.role === "assistant" &&
+                  index ===
+                    history.filter((m) => m.role !== "system").length - 1;
+                const originalMessageIndex = history.indexOf(msg);
+
+                const handleSaveEdit = (newContent: string) => {
+                  editMessage(originalMessageIndex, newContent, true);
+                  setEditingMessageIndex(null);
+
+                  setTimeout(() => {
+                    const { history: updatedHistory } =
+                      useVoiceConversation.getState();
+                    if (characterId) {
+                      const character = getCharacterById(characterId);
+                      const messages = [
+                        {
+                          role: "system" as const,
+                          content:
+                            character?.prompt || "You are a helpful assistant.",
+                        },
+                        ...updatedHistory,
+                      ];
+                      start({ characterId, messages });
+                    }
+                  }, 100);
+                };
+
+                return (
+                  <Message
+                    key={`msg-${originalMessageIndex}-${msg.role}`}
+                    className={cn("items-start gap-4 group", {
+                      "justify-end": msg.role === "user",
+                      "justify-start": msg.role === "assistant",
+                    })}
+                  >
+                    {msg.role === "assistant" && currentCharacter && (
+                      <MessageAvatar
+                        src={currentCharacter.image}
+                        alt={currentCharacter.name}
+                        fallback={currentCharacter.name.charAt(0)}
+                      />
+                    )}
+                    <div
+                      className={cn(
+                        "flex flex-col gap-2",
+                        msg.role === "user" ? "max-w-[70%]" : "flex-1 min-w-0",
+                      )}
+                    >
+                      {editingMessageIndex === originalMessageIndex ? (
+                        <Textarea
+                          className="min-w-[unset] w-full max-w-[70%] sm:max-w-[60%] md:max-w-[40%] lg:max-w-[50%]"
+                          defaultValue={msg.content}
+                          ref={(input) => input?.focus()}
+                          onBlur={(e) => handleSaveEdit(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSaveEdit(e.currentTarget.value);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <MessageContent
+                          id={`msg-${originalMessageIndex}-${msg.role}`}
+                          markdown
+                          className={cn(
+                            {
+                              "bg-white": msg.role === "user",
+                            },
+                            {
+                              "bg-transparent p-0": msg.role === "assistant",
+                            },
+                          )}
+                        >
+                          {msg.content}
+                        </MessageContent>
+                      )}
+                      <MessageActions
+                        className={cn("self-end", {
+                          "self-start": msg.role === "assistant",
+                        })}
+                      >
+                        <MessageActionsComponent
+                          messageIndex={originalMessageIndex}
+                          messageRole={msg.role as "user" | "assistant"}
+                          isLastAssistantMessage={isLastAssistantMessage}
+                          onEdit={() =>
+                            setEditingMessageIndex(originalMessageIndex)
+                          }
+                        />
+                      </MessageActions>
+                    </div>
+                  </Message>
+                );
+              })}
             {voiceActivity === VoiceActivity.Speaking && transcript && (
               <Message className="items-start justify-end gap-4">
                 <MessageContent className="bg-white">
@@ -207,11 +280,9 @@ export default function Page() {
           {!isVadReady && (
             <div className="absolute inset-0 flex justify-center items-center">
               <Loader />
-              {/* Optional text near loader for accessibility */}
               <span className="sr-only">{t("vad_loading")}</span>
             </div>
           )}
-          {/* When VAD is ready and conversation started, show prompt based on voice activity */}
           {isVadReady &&
             isConversationStarted &&
             animationActivity === VoiceActivity.Idle &&
@@ -224,7 +295,7 @@ export default function Page() {
           <div
             className={cn(
               "absolute bottom-10 left-1/2 -translate-x-1/2 w-40 h-40 transition-opacity duration-300 ease-in-out",
-              { "opacity-0": !isVadReady }, // Hide animation until VAD is ready
+              { "opacity-0": !isVadReady },
             )}
           >
             <AudioAnimation activity={animationActivity} />

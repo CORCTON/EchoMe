@@ -37,6 +37,9 @@ export interface VoiceConversationState {
   stopPlaying: () => void;
   clear: () => void;
   resumeAudio: () => void;
+  deleteMessage: (index: number) => void;
+  editMessage: (index: number, newContent: string, truncate?: boolean) => void;
+  retryLastAssistantMessage: () => void;
 }
 
 function int16ToAudioBuffer(
@@ -71,7 +74,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
     connect: (characterId: string) => {
       const { ws, reconnectTimer } = get();
-      if (ws && ws.readyState < 2) return; // Already connected or connecting
+      if (ws && ws.readyState < 2) return;
       if (reconnectTimer) clearTimeout(reconnectTimer);
 
       set({ connection: "connecting", characterId, reconnectTimer: null });
@@ -192,7 +195,6 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
       newWs.onerror = (e) => {
         console.error("voice-conversation ws error", e);
-        // onclose will be called next, which handles reconnection.
       };
 
       newWs.onclose = () => {
@@ -252,7 +254,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
     disconnect: () => {
       const { ws, audioCtx, idleTimer, reconnectTimer } = get();
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      set({ characterId: null, reconnectTimer: null }); // Prevent reconnection
+      set({ characterId: null, reconnectTimer: null });
 
       if (ws && ws.readyState < 2) {
         try {
@@ -306,6 +308,65 @@ export const useVoiceConversation = create<VoiceConversationState>(
       if (audioCtx.state === "suspended") {
         audioCtx.resume();
       }
+    },
+
+    deleteMessage: (index: number) => {
+      set((state) => {
+        const history = [...state.history];
+        if (
+          index < 0 ||
+          index >= history.length ||
+          history[index].role !== "user"
+        ) {
+          return state;
+        }
+        const newHistory = history.slice(0, index);
+        return { history: newHistory };
+      });
+    },
+
+    editMessage: (index: number, newContent: string, truncate = false) => {
+      set((state) => {
+        const history = [...state.history];
+        if (
+          index < 0 ||
+          index >= history.length ||
+          history[index].role !== "user"
+        ) {
+          return state;
+        }
+        history[index] = { ...history[index], content: newContent };
+        if (truncate) {
+          return { history: history.slice(0, index + 1) };
+        }
+        return { history };
+      });
+    },
+
+    retryLastAssistantMessage: () => {
+      const { history, characterId, start, stopPlaying } = get();
+      if (!characterId) return;
+
+      stopPlaying();
+
+      const lastAssistantIndex = history.findLastIndex(
+        (msg) => msg.role === "assistant",
+      );
+      if (lastAssistantIndex === -1) return;
+
+      const newHistory = history.slice(0, lastAssistantIndex);
+      set({ history: newHistory });
+
+      const { getCharacterById } = require("@/lib/characters");
+      const character = getCharacterById(characterId);
+      const messages = [
+        {
+          role: "system" as const,
+          content: character?.prompt || "You are a helpful assistant.",
+        },
+        ...newHistory,
+      ];
+      start({ characterId, messages });
     },
   }),
 );

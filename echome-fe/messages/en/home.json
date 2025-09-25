@@ -1,8 +1,14 @@
 {
-  "title": "Choose Character",
-  "description": "Different characters, different chemistry.",
-  "talk_to": "Talk to {characterName}",
-  "vad_loading": "VAD loading...",
-  "tap_to_start": "Tap the screen to start",
-  "say_something": "Say something"
+  "title": "EchoMe",
+  "description": "Have real-time voice conversations with your AI characters",
+  "try_now": "Try Now",
+  "say_something": "Say something...",
+  "vad_loading": "Voice Activity Detection loading...",
+  "delete_message": "Delete message",
+  "confirm_delete": "Confirm Deletion",
+  "delete_message_warning": "Deleting this message will also delete all subsequent messages. This action cannot be undone.",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "edit_message": "Edit message",
+  "retry": "Retry"
 }

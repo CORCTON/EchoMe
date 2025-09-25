@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
@@ -58,7 +59,7 @@ const MessageContent = ({
   ...props
 }: MessageContentProps) => {
   const classNames = cn(
-    "rounded-lg p-2 text-foreground bg-secondary prose break-words whitespace-normal",
+    "rounded-lg p-2 text-foreground bg-secondary prose break-words whitespace-normal min-w-0",
     className,
   );
 
@@ -98,24 +99,24 @@ export type MessageActionProps = {
   side?: "top" | "bottom" | "left" | "right";
 } & React.ComponentProps<typeof Tooltip>;
 
-const MessageAction = ({
-  tooltip,
-  children,
-  className,
-  side = "top",
-  ...props
-}: MessageActionProps) => {
+const MessageAction = React.forwardRef<
+  React.ElementRef<typeof TooltipTrigger>,
+  MessageActionProps
+>(({ tooltip, children, className, side = "top", ...props }, ref) => {
   return (
     <TooltipProvider>
-      <Tooltip {...props}>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild {...props} ref={ref}>
+          {children}
+        </TooltipTrigger>
         <TooltipContent side={side} className={className}>
           {tooltip}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
-};
+});
+MessageAction.displayName = "MessageAction";
 
 export {
   Message,
