@@ -76,11 +76,11 @@ export default function Page() {
     return (
         <button
             type="button"
-            className="bg-gray-200 flex items-center justify-center min-h-screen overflow-hidden w-full border-none cursor-pointer"
+            className=" bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800  flex items-center justify-center min-h-screen overflow-hidden w-full border-none cursor-pointer"
             onClick={handleStartConversation}
             disabled={!isVadReady || isConversationStarted}
         >
-            <div className="w-full h-screen flex flex-col justify-center items-center relative pointer-events-none">
+            <div className="w-full h-[100dvh] flex flex-col justify-center items-center relative pointer-events-none">
                 <div
                     className={cn(
                         "w-full flex-1 overflow-y-auto pt-4 pb-40 no-scrollbar [mask-image:linear-gradient(to_bottom,black_calc(100%-10rem),transparent)] transition-all duration-300 ease-in-out",
