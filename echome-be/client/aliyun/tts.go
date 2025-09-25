@@ -300,22 +300,62 @@ func sendTextToAliyun(aliWS *websocket.Conn, text, mode string) error {
 }
 
 // handleAliyunToClient 处理从阿里云百炼到客户端的音频传输
-func handleAliyunToClient(_ context.Context, aliWS *websocket.Conn, writer domain.WSWriter) error {
+func handleAliyunToClient(ctx context.Context, aliWS *websocket.Conn, writer domain.WSWriter) error {
 	for {
-		_, msg, err := aliWS.ReadMessage()
-		if err != nil {
-			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-				return nil
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			_, msg, err := aliWS.ReadMessage()
+			if err != nil {
+				// 客户端或阿里云关闭连接时退出
+				if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) ||
+					strings.Contains(err.Error(), "use of closed network connection") {
+					return nil
+				}
+				continue
 			}
-			return fmt.Errorf("读取阿里云TTS失败: %w", err)
-		}
 
-		if err := writer.WriteJSON(map[string]any{
-			"type":      "audio_chunk",
-			"data":      base64.StdEncoding.EncodeToString(msg),
-			"timestamp": time.Now(),
-		}); err != nil {
-			return fmt.Errorf("发送音频到客户端失败: %w", err)
+			var resp map[string]interface{}
+			if err := json.Unmarshal(msg, &resp); err != nil {
+				continue
+			}
+
+			switch resp["type"] {
+			case "response.audio.delta", "response.audio":
+				var audioData string
+				if delta, ok := resp["delta"].(string); ok && delta != "" {
+					audioData = delta
+				} else if audio, ok := resp["audio"].(string); ok && audio != "" {
+					audioData = audio
+				} else if data, ok := resp["data"].(string); ok && data != "" {
+					audioData = data
+				}
+
+				if audioData != "" {
+					audioBytes, err := base64.StdEncoding.DecodeString(audioData)
+					if err != nil {
+						continue
+					}
+					// 写给前端
+					if err := writer.WriteMessage(websocket.BinaryMessage, audioBytes); err != nil {
+						return fmt.Errorf("发送音频到客户端失败: %w", err)
+					}
+				}
+
+			case "session.finished":
+				return nil
+
+			case "error":
+				if errInfo, ok := resp["error"].(map[string]interface{}); ok {
+					return fmt.Errorf("阿里云TTS错误: %v", errInfo)
+				}
+				return fmt.Errorf("阿里云TTS未知错误: %v", resp)
+
+			default:
+				// 忽略其他类型
+				continue
+			}
 		}
 	}
 }
