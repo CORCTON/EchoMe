@@ -12,6 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
+	"github.com/justin/echome-be/internal/infrastructure"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -49,7 +50,7 @@ func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn
 
 	// 从阿里云读取音频并发送到客户端
 	g.Go(func() error {
-		return handleAliyunToClient(ctx, aliWS, clientWS)
+		return handleAliyunToClient(ctx, aliWS, infrastructure.NewSafeConn(clientWS))
 	})
 
 	// 添加心跳保持连接
@@ -60,8 +61,7 @@ func (client *AliClient) HandleTTS(ctx context.Context, clientWS *websocket.Conn
 	return g.Wait()
 }
 
-// TextToSpeech 直接将文本转换为语音并发送到WebSocket
-func (client *AliClient) TextToSpeech(ctx context.Context, text string, clientWS *websocket.Conn) error {
+func (client *AliClient) TextToSpeech(ctx context.Context, text string, writer domain.WSWriter) error {
 	config := DefaultTTSConfig()
 	aliWS, err := connectToAliyunTTS(client.apiKey, client.endPoint, config.Model)
 	if err != nil {
@@ -69,41 +69,39 @@ func (client *AliClient) TextToSpeech(ctx context.Context, text string, clientWS
 	}
 	defer aliWS.Close()
 
-	// 更新会话配置
 	if err := updateTTSSession(aliWS, config); err != nil {
 		return fmt.Errorf("更新TTS会话配置失败: %w", err)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	// 直接发送文本到阿里云，不需要从客户端读取
+	// 发送文本
 	g.Go(func() error {
-		// 发送文本
 		if err := sendTextToAliyun(aliWS, text, config.Mode); err != nil {
 			return fmt.Errorf("发送文本到阿里云百炼失败: %w", err)
 		}
-		// 发送完成信号
-		time.Sleep(100 * time.Millisecond) // 短暂延迟确保文本发送完成
+		time.Sleep(100 * time.Millisecond)
 		return sendEvent(aliWS, "session.finish", nil)
 	})
 
-	// 从阿里云读取音频并发送到客户端
+	// 从阿里云接收音频并写入 SafeConn
 	g.Go(func() error {
-		return handleAliyunToClient(ctx, aliWS, clientWS)
+		return handleAliyunToClient(ctx, aliWS, writer)
 	})
 
-	// 添加心跳保持连接
+	// 心跳
 	g.Go(func() error {
 		return keepAlive(ctx, aliWS)
 	})
 
-	// 等待所有goroutine完成
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("TTS处理失败: %w", err)
 	}
 
 	return nil
 }
+
+
 
 // connectToAliyunTTS 连接到阿里云百炼TTS WebSocket
 func connectToAliyunTTS(apiKey, endpoint, model string) (*websocket.Conn, error) {
@@ -302,78 +300,22 @@ func sendTextToAliyun(aliWS *websocket.Conn, text, mode string) error {
 }
 
 // handleAliyunToClient 处理从阿里云百炼到客户端的音频传输
-func handleAliyunToClient(ctx context.Context, aliWS, clientWS *websocket.Conn) error {
+func handleAliyunToClient(_ context.Context, aliWS *websocket.Conn, writer domain.WSWriter) error {
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			aliWS.SetReadDeadline(time.Now().Add(60 * time.Second))
-			_, msg, err := aliWS.ReadMessage()
-			if err != nil {
-				if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-					return nil
-				}
+		_, msg, err := aliWS.ReadMessage()
+		if err != nil {
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
 				return nil
 			}
+			return fmt.Errorf("读取阿里云TTS失败: %w", err)
+		}
 
-			var response map[string]interface{}
-			if err := json.Unmarshal(msg, &response); err != nil {
-				continue
-			}
-
-			eventType, ok := response["type"].(string)
-			if !ok {
-				continue
-			}
-
-			switch eventType {
-			case "response.audio.delta":
-				// 处理音频数据流
-				var audioData string
-				if delta, ok := response["delta"].(string); ok && delta != "" {
-					audioData = delta
-				} else if audio, ok := response["audio"].(string); ok && audio != "" {
-					audioData = audio
-				} else if data, ok := response["data"].(string); ok && data != "" {
-					audioData = data
-				}
-
-				if audioData != "" {
-					audioBytes, err := base64.StdEncoding.DecodeString(audioData)
-					if err != nil {
-						continue
-					}
-
-					// 发送到客户端
-					if err := clientWS.WriteMessage(websocket.BinaryMessage, audioBytes); err != nil {
-						return fmt.Errorf("向客户端发送音频失败: %w", err)
-					}
-				}
-
-			case "response.audio.done":
-				// 音频生成完成
-				continue
-
-			case "response.done":
-				// 响应完成
-				continue
-
-			case "session.finished":
-				// 会话结束
-				return nil
-
-			case "error":
-				// 处理错误
-				if errorInfo, ok := response["error"].(map[string]interface{}); ok {
-					return fmt.Errorf("阿里云百炼TTS错误: %v", errorInfo)
-				}
-				return fmt.Errorf("阿里云百炼TTS未知错误: %v", response)
-
-			default:
-				// 忽略其他类型的消息
-				continue
-			}
+		if err := writer.WriteJSON(map[string]any{
+			"type":      "audio_chunk",
+			"data":      base64.StdEncoding.EncodeToString(msg),
+			"timestamp": time.Now(),
+		}); err != nil {
+			return fmt.Errorf("发送音频到客户端失败: %w", err)
 		}
 	}
 }

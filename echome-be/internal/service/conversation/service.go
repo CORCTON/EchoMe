@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/client/aliyun"
 	"github.com/justin/echome-be/internal/domain"
+	"github.com/justin/echome-be/internal/infrastructure"
 )
 
 // ConversationService 会话服务实现
@@ -137,7 +139,6 @@ func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *d
 		}
 	} else {
 		// 未提供角色ID，使用临时ID创建默认角色
-		// 将在handleSimpleVoiceConversationFlow中从消息获取实际角色ID
 		character = &domain.Character{
 			ID:          uuid.New(),
 			Name:        "临时默认角色",
@@ -152,25 +153,21 @@ func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *d
 func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Context, conn *websocket.Conn, character *domain.Character, language string) error {
 	log.Println("Starting voice conversation flow with character:", character.ID)
 
-	// 为对话创建一个新的上下文
 	conversationCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	defer conn.Close()
 
-	// 循环处理WebSocket消息
+	sc := infrastructure.NewSafeConn(conn)
+	defer sc.Close()
+
 	for {
-		// 读取客户端发送的文本消息
-		messageType, message, err := conn.ReadMessage()
+		messageType, message, err := sc.Underlying().ReadMessage()	
 		if err != nil {
 			log.Printf("Error reading WebSocket message: %v", err)
-			// 客户端关闭连接是正常的
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				return nil
 			}
 			return WrapError(ErrCodeWebSocketError, "读取WebSocket消息失败", err)
 		}
-
-		// 确保接收到的是文本消息
 		if messageType != websocket.TextMessage {
 			log.Printf("Expected text message but received %d", messageType)
 			continue
@@ -181,10 +178,12 @@ func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Cont
 			Text         string             `json:"text"`
 			CharacterID  string             `json:"character_id,omitempty"`
 			Messages     []domain.ContextMessage `json:"messages,omitempty"`
+			Stream       bool               `json:"stream,omitempty"` // 是否启用流式响应
 		}
 		
 		userInput := string(message)
 		conversationHistory := []map[string]string{}
+		enableStream := false
 		
 		// 尝试解析JSON结构
 		if err := json.Unmarshal(message, &structuredMessage); err == nil {
@@ -222,6 +221,9 @@ func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Cont
 				}
 				log.Printf("Using provided conversation history with %d messages", len(conversationHistory))
 			}
+
+			// 检查是否启用流式响应
+			enableStream = structuredMessage.Stream
 		} else {
 			// 非结构化消息，直接作为用户输入
 			log.Printf("Received plain text message")
@@ -229,43 +231,102 @@ func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Cont
 		
 		log.Printf("Processing user input: %s", userInput)
 
-		// 使用AI服务生成响应，传入前端提供的对话上下文
 		characterContext := character.Description
-		log.Println("Generating AI response based on character context")
-		response, err := s.aiService.GenerateResponse(conversationCtx, userInput, characterContext, conversationHistory)
-		if err != nil {
-			log.Printf("Failed to generate AI response: %v", err)
-			return WrapError(ErrCodeAIGenerationFailed, "生成AI响应失败", err)
-		}
 
-		log.Printf("AI response generated: %s", response)
-
-		// 先发送文本响应确认给客户端
-		if err := conn.WriteJSON(map[string]interface{}{
-			"type":      "text_response",
-			"response":  response,
-			"timestamp": time.Now(),
-		}); err != nil {
-			log.Printf("Failed to send text response: %v", err)
-			return WrapError(ErrCodeWebSocketError, "发送文本响应失败", err)
-		}
-		// 在单独的goroutine中处理TTS，避免阻塞主消息循环
-		go func(text string) {
-			// 创建新的上下文，避免主上下文取消影响TTS处理
-			ttsCtx, ttsCancel := context.WithCancel(context.Background())
-			defer ttsCancel()
-
-			log.Printf("Handling TTS to convert response to speech in background: %s", text)
-			// 使用新的TextToSpeech方法直接处理文本到语音转换
-			if err := s.aiService.TextToSpeech(ttsCtx, text, conn); err != nil {
-				log.Printf("TTS handling error in background: %v", err)
-				// 只记录错误，不中断主流程
-				return
+		// 根据是否启用流式响应选择不同的处理方式
+		if enableStream {
+			if err := s.handleStreamingConversation(conversationCtx, sc, userInput, characterContext, conversationHistory); err != nil {
+				sc.WriteJSON(map[string]any{
+					"type":    "error",
+					"message": "流式响应处理失败",
+				})
+				continue
+			}
+		} else {
+			response, err := s.aiService.GenerateResponse(conversationCtx, userInput, characterContext, conversationHistory)
+			if err != nil {
+				return WrapError(ErrCodeAIGenerationFailed, "生成AI响应失败", err)
 			}
 
-			log.Println("Background TTS processing completed successfully")
-		}(response)
+			sc.WriteJSON(map[string]any{
+				"type":      "text_response",
+				"response":  response,
+				"timestamp": time.Now(),
+			})
 
-		log.Println("Voice conversation round completed successfully")
+			// TTS 在后台 goroutine，但还是用 sc 写
+			go func(text string) {
+				ttsCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				defer cancel()
+				if err := s.aiService.TextToSpeech(ttsCtx, text, sc); err != nil {
+					sc.WriteJSON(map[string]any{
+						"type":    "tts_error",
+						"message": err.Error(),
+					})
+				}
+			}(response)
+		}
 	}
 }
+func (s *ConversationService) handleStreamingConversation(
+	ctx context.Context,
+	sc *infrastructure.SafeConn,
+	userInput string,
+	characterContext string,
+	conversationHistory []map[string]string,
+) error {
+	// 直接用 sc 写，保证不会并发写 conn
+	sc.WriteJSON(map[string]any{"type": "stream_start", "timestamp": time.Now()})
+
+	var fullResponse, ttsBuffer strings.Builder
+	const ttsMinLen = 50
+
+	onChunk := func(chunk string) error {
+		fullResponse.WriteString(chunk)
+		sc.WriteJSON(map[string]any{
+			"type":      "stream_chunk",
+			"content":   chunk,
+			"timestamp": time.Now(),
+		})
+
+		ttsBuffer.WriteString(chunk)
+		text := ttsBuffer.String()
+		shouldTTS := len(text) >= ttsMinLen || strings.ContainsAny(text[len(text)-1:], "。！？.!?")
+		if shouldTTS {
+			toSpeak := text
+			ttsBuffer.Reset()
+			go func() {
+				ttsCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+				defer cancel()
+				if err := s.aiService.TextToSpeech(ttsCtx, toSpeak, sc); err != nil {
+					sc.WriteJSON(map[string]any{
+						"type":    "tts_error",
+						"message": err.Error(),
+					})
+				}
+			}()
+		}
+		return nil
+	}
+
+	if err := s.aiService.GenerateStreamResponse(ctx, userInput, characterContext, conversationHistory, onChunk); err != nil {
+		return WrapError(ErrCodeAIGenerationFailed, "生成流式AI响应失败", err)
+	}
+
+	if ttsBuffer.Len() > 0 {
+		toSpeak := ttsBuffer.String()
+		go func() {
+			ttsCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			s.aiService.TextToSpeech(ttsCtx, toSpeak, sc)
+		}()
+	}
+
+	sc.WriteJSON(map[string]any{
+		"type":      "stream_end",
+		"response":  fullResponse.String(),
+		"timestamp": time.Now(),
+	})
+	return nil
+}
+
