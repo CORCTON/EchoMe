@@ -18,8 +18,8 @@ type AIService interface {
 	// TextToSpeech 直接将文本转换为语音并发送到WebSocket
 	// @param ctx 上下文
 	// @param text 需要转换的文本
-	// @param clientWS WebSocket连接
-	TextToSpeech(ctx context.Context, text string, clientWS *websocket.Conn) error
+	// @param writer WebSocket写入器
+	TextToSpeech(ctx context.Context, text string, writer WSWriter) error
 
 	// GenerateResponse 生成AI响应
 	// @param ctx 上下文
@@ -27,6 +27,14 @@ type AIService interface {
 	// @param characterContext 角色上下文
 	// @param conversationHistory 对话历史，格式为[{"role": "user/assistant", "content": "内容"}, ...]
 	GenerateResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string) (string, error)
+
+	// GenerateStreamResponse 生成AI流式响应
+	// @param ctx 上下文
+	// @param userInput 用户输入
+	// @param characterContext 角色上下文
+	// @param conversationHistory 对话历史，格式为[{"role": "user/assistant", "content": "内容"}, ...]
+	// @param onChunk 处理文本块的回调函数
+	GenerateStreamResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string, onChunk func(string) error) error
 }
 
 // ASRConfig 定义ASR配置参数
