@@ -1,8 +1,14 @@
 {
-  "title": "选择角色",
-  "description": "不同的角色，不同的默契。",
-  "talk_to": "与{characterName}交谈",
-  "vad_loading": "VAD 加载中",
-  "tap_to_start": "轻点屏幕以开始",
-  "say_something": "说点什么吧"
+  "title": "EchoMe",
+  "description": "与您的 AI 角色进行实时语音对话",
+  "try_now": "立即体验",
+  "say_something": "说点什么...",
+  "vad_loading": "语音活动检测加载中...",
+  "delete_message": "删除消息",
+  "confirm_delete": "确认删除",
+  "delete_message_warning": "删除此消息将同时删除它之后的所有对话内容。此操作无法撤销。",
+  "cancel": "取消",
+  "delete": "删除",
+  "edit_message": "修改消息",
+  "retry": "重试"
 }

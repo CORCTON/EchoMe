@@ -10,7 +10,9 @@ import { voiceCharacters, type VoiceCharacter } from "@/lib/characters";
 export default function Home() {
   const t = useTranslations("home");
   const router = useRouter();
-  const [selectedCharacter, setSelectedCharacter] = useState<VoiceCharacter>(voiceCharacters[0]);
+  const [selectedCharacter, setSelectedCharacter] = useState<VoiceCharacter>(
+    voiceCharacters[0],
+  );
 
   const handleCharacterSelect = (character: VoiceCharacter) => {
     setSelectedCharacter(character);
@@ -23,9 +25,7 @@ export default function Home() {
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-2">
           {t("title")}
         </h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          {t("description")}
-        </p>
+        <p className="text-slate-600 dark:text-slate-400">{t("description")}</p>
       </div>
 
       {/* 轮播组件 */}
