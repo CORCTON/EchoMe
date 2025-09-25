@@ -56,5 +56,5 @@ export const voiceCharacters: VoiceCharacter[] = [
 ];
 
 export function getCharacterById(id: string): VoiceCharacter | undefined {
-  return voiceCharacters.find(character => character.id === id);
+  return voiceCharacters.find((character) => character.id === id);
 }

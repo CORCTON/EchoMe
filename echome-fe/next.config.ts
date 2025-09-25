@@ -4,18 +4,18 @@ const CopyPlugin = require("copy-webpack-plugin");
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  images:{
-    remotePatterns:[
+  images: {
+    remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'api.dicebear.com',
-      }
-    ]
+        protocol: "https",
+        hostname: "api.dicebear.com",
+      },
+    ],
   },
   webpack: (config) => {
     config.ignoreWarnings = [
-        ...(config.ignoreWarnings || []),
-        /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
+      ...(config.ignoreWarnings || []),
+      /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
     ];
     config.plugins.push(
       new CopyPlugin({
@@ -25,8 +25,7 @@ const nextConfig: NextConfig = {
             to: "../public/vad/[name][ext]",
           },
           {
-            from:
-              "node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js",
+            from: "node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js",
             to: "../public/vad/[name][ext]",
           },
           {
