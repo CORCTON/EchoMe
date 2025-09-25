@@ -183,16 +183,20 @@ export const useVadStore = create<VadState>((set, get) => ({
             const text = message.text || "";
             const isFinal = !!message.sentence_end;
 
-            set((state) => ({
-              transcript: state.committedTranscript + text,
-              isFinal,
-            }));
-
-            if (isFinal && text) {
-              set((state) => ({
-                committedTranscript: `${state.transcript} `,
-              }));
-            }
+            set((state) => {
+              const newTranscript = state.committedTranscript + text;
+              let newCommittedTranscript = state.committedTranscript;
+              if (isFinal) {
+                newCommittedTranscript = newTranscript
+                  ? `${newTranscript} `
+                  : state.committedTranscript;
+              }
+              return {
+                transcript: newTranscript,
+                isFinal,
+                committedTranscript: newCommittedTranscript,
+              };
+            });
           }
         } catch (e) {
           console.error("Failed to parse asr message", e);
