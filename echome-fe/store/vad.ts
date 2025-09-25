@@ -8,25 +8,42 @@ export enum ConnectionState {
     Disconnected,
 }
 
+interface AsrResult {
+    type: "asr_result";
+    text: string;
+    sentence_end: boolean;
+}
+
 interface VadState {
-    connectionState: ConnectionState;
+    isVadReady: boolean;
+    asrConnectionState: ConnectionState;
     voiceActivity: VoiceActivity;
+    committedTranscript: string;
     transcript: string;
+    isFinal: boolean;
+    isTranscribing: boolean;
     socket: WebSocket | null;
     vad: MicVAD | null;
-    initVad: () => Promise<void>;
-    connect: () => void;
+    preSpeechBuffer: Float32Array[];
+    audioQueue: Float32Array[];
+    initVad: (onSpeechEnd: (transcript: string) => void) => Promise<void>;
     disconnect: () => void;
     send: (data: Float32Array) => void;
     setVoiceActivity: (activity: VoiceActivity) => void;
+    resetTranscript: () => void;
 }
 
 export const useVadStore = create<VadState>((set, get) => ({
-    connectionState: ConnectionState.Disconnected,
+    isVadReady: false,
+    asrConnectionState: ConnectionState.Disconnected,
     voiceActivity: VoiceActivity.Loading,
+    isTranscribing: false,
     vad: null,
-    initVad: async () => {
-        set({ voiceActivity: VoiceActivity.Loading });
+    preSpeechBuffer: [],
+    audioQueue: [],
+    committedTranscript: "",
+    initVad: async (onSpeechEndCallback) => {
+        set({ voiceActivity: VoiceActivity.Loading, isVadReady: false });
         try {
             const vad = await MicVAD.new({
                 baseAssetPath: "/vad/",
@@ -36,69 +53,62 @@ export const useVadStore = create<VadState>((set, get) => ({
                 positiveSpeechThreshold: 0.8,
                 minSpeechMs: 100,
                 onSpeechStart: () => {
-                    set({ voiceActivity: VoiceActivity.Speaking });
+                    const { echoGuardUntil, interrupt } = require("@/store/voice-conversation").useVoiceConversation.getState();
+                    if (echoGuardUntil && Date.now() < echoGuardUntil) {
+                        return;
+                    }
+                    interrupt();
+                    get().resetTranscript();
+                    const { preSpeechBuffer, send } = get();
+                    if (preSpeechBuffer.length > 0) {
+                        const concatenated = new Float32Array(preSpeechBuffer.reduce((acc, val) => acc + val.length, 0));
+                        let offset = 0;
+                        for (const chunk of preSpeechBuffer) {
+                            concatenated.set(chunk, offset);
+                            offset += chunk.length;
+                        }
+                        send(concatenated);
+                    }
+                    set({ voiceActivity: VoiceActivity.Speaking, isTranscribing: true, preSpeechBuffer: [] });
                 },
                 onSpeechEnd: () => {
-                    set({ voiceActivity: VoiceActivity.Idle });
+                    set({ voiceActivity: VoiceActivity.Loading, isTranscribing: false, preSpeechBuffer: [] });
+                    const { socket, transcript } = get();
+                    if (socket) {
+                        socket.close();
+                        set({ socket: null, asrConnectionState: ConnectionState.Disconnected });
+                    }
+                    if (transcript) {
+                        onSpeechEndCallback(transcript);
+                    }
                 },
-                onFrameProcessed: (probabilities, frame) => {
-                    if (probabilities.isSpeech > 0.8) {
-                        get().send(frame);
+                onFrameProcessed: (_, frame) => {
+                    const { isTranscribing, preSpeechBuffer, send } = get();
+                    if (isTranscribing) {
+                        send(frame);
+                    } else {
+                        const bufferSize = 7;
+                        const newBuffer = [...preSpeechBuffer, frame];
+                        if (newBuffer.length > bufferSize) {
+                            newBuffer.shift();
+                        }
+                        set({ preSpeechBuffer: newBuffer });
                     }
                 },
             });
-            set({ vad, voiceActivity: VoiceActivity.Idle });
+            set({ vad, voiceActivity: VoiceActivity.Idle, isVadReady: true });
             vad.start();
         } catch (e) {
             console.error("Failed to initialize VAD", e);
-            set({ voiceActivity: VoiceActivity.Idle });
+            set({ voiceActivity: VoiceActivity.Idle, isVadReady: false });
         }
     },
     transcript: "",
+    isFinal: false,
     socket: null,
-    connect: () => {
-        const existingSocket = get().socket;
-        if (existingSocket && existingSocket.readyState < 2) { // CONNECTING or OPEN
-            return;
-        }
-
-        set({ connectionState: ConnectionState.Connecting });
-
-        const url = new URL(`${process.env.NEXT_PUBLIC_WS_URL}/ws/asr`);
-        url.searchParams.set("sample_rate", "16000");
-        url.searchParams.set("format", "pcm");
-        const newSocket = new WebSocket(url);
-
-        newSocket.onopen = () => {
-            set({ connectionState: ConnectionState.Connected });
-            console.log("WebSocket connected");
-        };
-
-        newSocket.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            // The backend sends { "type": "asr_result", "text": "...", "sentence_end": false }
-            if (message.type === "asr_result" && message.text) {
-                // Replace the transcript with the new incoming text for a real-time correction effect
-                set({ transcript: message.text });
-            }
-        };
-
-        newSocket.onclose = () => {
-            set((state) => (state.socket === newSocket ? { connectionState: ConnectionState.Disconnected, socket: null } : {}));
-            console.log("WebSocket disconnected");
-        };
-
-        newSocket.onerror = (error) => {
-            console.error("WebSocket error:", error);
-            newSocket.close();
-        };
-
-        set({ socket: newSocket });
-    },
     disconnect: () => {
         const { socket, vad } = get();
         if (socket) {
-            // Remove listeners to prevent memory leaks and unwanted state updates
             socket.onopen = null;
             socket.onmessage = null;
             socket.onclose = null;
@@ -106,22 +116,75 @@ export const useVadStore = create<VadState>((set, get) => ({
             socket.close();
         }
         vad?.destroy();
-        set({ socket: null, connectionState: ConnectionState.Disconnected, vad: null });
+        set({ socket: null, asrConnectionState: ConnectionState.Disconnected, vad: null, isVadReady: false, isTranscribing: false });
     },
     send: (data: Float32Array) => {
-        const socket = get().socket;
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            const buffer = new Int16Array(data.length);
-            for (let i = 0; i < data.length; i++) {
-                buffer[i] = Math.max(-32768, Math.min(32767, Math.floor(data[i] * 32768)));
+        const { socket } = get();
+
+        const sendData = (ws: WebSocket, audioData: Float32Array) => {
+            const buffer = new Int16Array(audioData.length);
+            for (let i = 0; i < audioData.length; i++) {
+                buffer[i] = Math.max(-32768, Math.min(32767, Math.floor(audioData[i] * 32768)));
             }
-            socket.send(buffer.buffer);
+            ws.send(buffer.buffer);
+        };
+
+        if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+            set({ asrConnectionState: ConnectionState.Connecting, audioQueue: [] });
+            const newSocket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws/asr?sample_rate=16000&format=pcm`);
+
+            newSocket.onopen = () => {
+                set({ asrConnectionState: ConnectionState.Connected, socket: newSocket });
+                sendData(newSocket, data); // Send the initial data (pre-speech buffer)
+                const { audioQueue } = get();
+                for (const queuedData of audioQueue) {
+                    sendData(newSocket, queuedData);
+                }
+                set({ audioQueue: [] });
+            };
+
+            newSocket.onmessage = (event) => {
+                if (typeof event.data !== "string") return;
+                try {
+                    const message = JSON.parse(event.data) as AsrResult;
+                    if (message?.type === "asr_result") {
+                        const text = message.text || "";
+                        const isFinal = !!message.sentence_end;
+
+                        set((state) => ({
+                            transcript: state.committedTranscript + text,
+                            isFinal,
+                        }));
+
+                        if (isFinal && text) {
+                            set((state) => ({
+                                committedTranscript: `${state.transcript} `,
+                            }));
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to parse asr message", e);
+                }
+            };
+
+            newSocket.onclose = () => {
+                set((state) => (state.socket === newSocket ? { asrConnectionState: ConnectionState.Disconnected, socket: null } : {}));
+            };
+
+            newSocket.onerror = (error) => {
+                console.error("ASR WebSocket error:", error);
+                get().disconnect();
+            };
+
+            set({ socket: newSocket });
+        } else if (socket.readyState === WebSocket.CONNECTING) {
+            set((state) => ({ audioQueue: [...state.audioQueue, data] }));
+        } else if (socket.readyState === WebSocket.OPEN) {
+            sendData(socket, data);
         }
     },
     setVoiceActivity: (activity: VoiceActivity) => {
-        // The transcript is now cleared by the arrival of the first result of the next sentence,
-        // which prevents a race condition where the final result of the previous sentence is cleared
-        // before it can be displayed.
         set({ voiceActivity: activity });
     },
+    resetTranscript: () => set({ transcript: "", committedTranscript: "", isFinal: false }),
 }));
