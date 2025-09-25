@@ -25,6 +25,7 @@
     "next-intl": "^4.3.9",
     "onnxruntime-web": "^1.22.0",
     "opus-media-recorder": "^0.8.0",
+    "pcm-player": "^0.0.18",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-markdown": "^10.1.0",

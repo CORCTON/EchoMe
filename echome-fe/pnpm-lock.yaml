@@ -53,6 +53,9 @@ importers:
       opus-media-recorder:
         specifier: ^0.8.0
         version: 0.8.0
+      pcm-player:
+        specifier: ^0.0.18
+        version: 0.0.18
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -1483,6 +1486,9 @@ packages:
 
   parse-entities@4.0.2:
     resolution: {integrity: sha512-GG2AQYWoLgL877gQIKeRPGO1xF9+eG1ujIb5soS5gPvLQ1y2o8FL90w2QWNdf9I361Mpp7726c+lj3U0qK1uGw==}
+
+  pcm-player@0.0.18:
+    resolution: {integrity: sha512-kRamagzBRlcLORBlLxb4UADPwqyGOiGgkzhZsIwtMGS7n6Hlp7h44PaEL8TIybzSkyMcIvvsQjUCuphW+aeDkg==}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -3228,6 +3234,8 @@ snapshots:
       is-alphanumerical: 2.0.1
       is-decimal: 2.0.1
       is-hexadecimal: 2.0.1
+
+  pcm-player@0.0.18: {}
 
   picocolors@1.1.1: {}
 

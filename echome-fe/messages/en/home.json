@@ -1,5 +1,8 @@
 {
   "title": "Choose Character",
   "description": "Different characters, different chemistry.",
-  "talk_to": "Talk to {characterName}"
+  "talk_to": "Talk to {characterName}",
+  "vad_loading": "VAD loading...",
+  "tap_to_start": "Tap the screen to start",
+  "say_something": "Say something"
 }

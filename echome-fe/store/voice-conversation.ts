@@ -1,8 +1,6 @@
 "use client";
 import { create } from "zustand";
 import { VoiceActivity } from "@/types/vad";
-import { parseApiResponse } from "@/lib/utils";
-import type { APIResponse } from "@/types/api";
 
 type Role = "system" | "user" | "assistant";
 
@@ -26,13 +24,18 @@ export interface VoiceConversationState {
   audioCtx: AudioContext | null;
   gainNode: GainNode | null;
   isPlaying: boolean;
-  playQueueTime?: number;
+  sources: AudioBufferSourceNode[];
+  nextStartTime?: number;
   idleTimer: NodeJS.Timeout | null;
-  setVoiceActivity: (activity: VoiceActivity) => void;
+  reconnectTimer: NodeJS.Timeout | null;
+  isInterrupted: boolean;
+  echoGuardUntil: number | null;
   connect: (characterId: string) => void;
   start: (payload: ConversationRequest) => void;
   pushUserMessage: (content: string) => void;
   interrupt: () => void;
+  disconnect: () => void;
+  stopPlaying: () => void;
   clear: () => void;
   resumeAudio: () => void;
 }
@@ -40,7 +43,7 @@ export interface VoiceConversationState {
 function int16ToAudioBuffer(
   ctx: AudioContext,
   int16: Int16Array,
-  sampleRate = 16000
+  sampleRate = 24000
 ) {
   const float32 = new Float32Array(int16.length);
   for (let i = 0; i < int16.length; i++) {
@@ -59,20 +62,19 @@ export const useVoiceConversation = create<VoiceConversationState>((set, get) =>
   audioCtx: null,
   gainNode: null,
   isPlaying: false,
-  playQueueTime: undefined,
+  sources: [],
+  nextStartTime: undefined,
   idleTimer: null,
-
-  setVoiceActivity: (activity: VoiceActivity) => {
-    const { setVoiceActivity } = require("@/store/vad").useVadStore.getState();
-    setVoiceActivity(activity);
-  },
+  reconnectTimer: null,
+  isInterrupted: false,
+  echoGuardUntil: null,
 
   connect: (characterId: string) => {
-    const { ws, interrupt } = get();
+    const { ws, reconnectTimer } = get();
     if (ws && ws.readyState < 2) return; // Already connected or connecting
+    if (reconnectTimer) clearTimeout(reconnectTimer);
 
-    interrupt(); // Clean up previous connection if any
-    set({ connection: "connecting", characterId });
+    set({ connection: "connecting", characterId, reconnectTimer: null });
 
     const url = new URL(`${process.env.NEXT_PUBLIC_WS_URL}/ws/voice-conversation`);
     const newWs = new WebSocket(url);
@@ -84,83 +86,93 @@ export const useVoiceConversation = create<VoiceConversationState>((set, get) =>
     };
 
     newWs.onmessage = async (ev) => {
-      const { idleTimer, setVoiceActivity } = get();
+      if (get().isInterrupted) return;
+
+      const { idleTimer } = get();
       if (idleTimer) clearTimeout(idleTimer);
 
       if (typeof ev.data === "string") {
-        const result = parseApiResponse(ev.data);
-        if (!result.ok) {
-          console.error("Invalid message format:", result.reason, ev.data);
-          return;
-        }
+        try {
+          const message = JSON.parse(ev.data);
 
-        const parsed = result.value as APIResponse<unknown>;
-        if (!parsed.success) {
-          const errMsg = parsed.error?.message ?? "API error";
-          set((s) => ({ history: [...s.history, { role: "assistant", content: `Error: ${errMsg}` }] }));
-          setVoiceActivity(VoiceActivity.Idle); // On error, set to idle
-          return;
-        }
-
-        const msgs = parsed.data && typeof parsed.data === "object" ? (parsed.data as { messages?: unknown }).messages : undefined;
-        if (Array.isArray(msgs)) {
-          const additions: ChatMessage[] = msgs
-            .map((m): ChatMessage | null => {
-              if (m && typeof m === "object" && "role" in m && "content" in m) {
-                const roleVal = (m as { role: unknown }).role;
-                const contentVal = (m as { content: unknown }).content;
-                const role: Role = roleVal === "assistant" ? "assistant" : roleVal === "user" ? "user" : "system";
-                return { role, content: String(contentVal ?? "") };
-              }
-              return null;
-            })
-            .filter((x): x is ChatMessage => Boolean(x));
-
-          if (additions.length > 0) {
+          if (message.type === "stream_chunk" && message.content) {
             set((s) => {
               const history = [...s.history];
-              for (const add of additions) {
-                const last = history[history.length - 1];
-                if (add.role === "assistant" && last?.role === "assistant") {
-                  history[history.length - 1] = { role: "assistant", content: (last.content ?? "") + add.content };
-                } else {
-                  history.push(add);
-                }
+              const last = history[history.length - 1];
+              if (last?.role === "assistant") {
+                history[history.length - 1] = {
+                  role: "assistant",
+                  content: (last.content ?? "") + message.content,
+                };
+              } else {
+                history.push({ role: "assistant", content: message.content });
               }
               return { history };
             });
+          } else if (message.type === "text_response" && message.response) {
+            set((s) => {
+              const history = [...s.history];
+              const last = history[history.length - 1];
+              if (last?.role === "assistant") {
+                history[history.length - 1] = {
+                  role: "assistant",
+                  content: message.response,
+                };
+              } else {
+                history.push({ role: "assistant", content: message.response });
+              }
+              return { history };
+            });
+          } else if (message.type === "tts_error") {
+            console.warn("TTS error ignored:", message.message);
           }
+        } catch (e) {
+          console.error("Failed to parse ws message", e);
         }
         return;
       }
 
       const arrayBuf = ev.data as ArrayBuffer;
       const int16 = new Int16Array(arrayBuf);
-      const { audioCtx, gainNode } = get();
+      const { audioCtx, gainNode, nextStartTime, isPlaying } = get();
       if (!audioCtx || !gainNode) return;
 
-      if (!get().isPlaying) {
-        setVoiceActivity(VoiceActivity.Speaking);
-      }
-
       try {
-        const audioBuffer = int16ToAudioBuffer(audioCtx, int16, 16000);
+        const audioBuffer = int16ToAudioBuffer(audioCtx, int16);
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(gainNode);
 
         const now = audioCtx.currentTime;
-        const queuedStart = get().playQueueTime ?? now;
-        const startAt = Math.max(queuedStart, now);
+        const startAt = nextStartTime && nextStartTime > now ? nextStartTime : now;
+        
+        if (!isPlaying) {
+          set({ echoGuardUntil: Date.now() + 300 });
+        }
+        
         source.start(startAt);
-        const nextTime = startAt + audioBuffer.duration;
-        set({ isPlaying: true, playQueueTime: nextTime });
+        const endTime = startAt + audioBuffer.duration;
 
-        const newIdleTimer = setTimeout(() => {
-          set({ isPlaying: false, playQueueTime: undefined, idleTimer: null });
-          setVoiceActivity(VoiceActivity.Idle);
-        }, (nextTime - now + 0.5) * 1000);
-        set({ idleTimer: newIdleTimer });
+        source.onended = () => {
+          set((s) => ({ sources: s.sources.filter((src) => src !== source) }));
+          
+          const state = get();
+          if (state.sources.length === 0) {
+            const idleTimer = setTimeout(() => {
+              const latest = get();
+              if (latest.sources.length === 0) {
+                set({ isPlaying: false, nextStartTime: undefined, idleTimer: null });
+              }
+            }, 350);
+            set({ idleTimer });
+          }
+        };
+
+        set((s) => ({
+          isPlaying: true,
+          nextStartTime: endTime,
+          sources: [...s.sources, source],
+        }));
 
       } catch (err) {
         console.error("Failed to play pcm chunk", err);
@@ -169,19 +181,27 @@ export const useVoiceConversation = create<VoiceConversationState>((set, get) =>
 
     newWs.onerror = (e) => {
       console.error("voice-conversation ws error", e);
-      set({ connection: "disconnected" });
+      // onclose will be called next, which handles reconnection.
     };
 
     newWs.onclose = () => {
       set({ connection: "disconnected", ws: null });
+      const { characterId: currentCharacterId } = get();
+      if (currentCharacterId) {
+        console.log("WebSocket connection lost, attempting to reconnect in 2s...");
+        const timer = setTimeout(() => {
+          get().connect(currentCharacterId);
+        }, 2000);
+        set({ reconnectTimer: timer });
+      }
     };
   },
 
   start: (payload: ConversationRequest) => {
     const { ws, connection } = get();
     if (ws && connection === "connected") {
-      get().setVoiceActivity(VoiceActivity.Loading);
-      ws.send(JSON.stringify(payload));
+      set({ isInterrupted: false });
+      ws.send(JSON.stringify({ ...payload, stream: true }));
     } else {
       console.error("WebSocket not connected. Cannot start conversation.");
     }
@@ -192,8 +212,35 @@ export const useVoiceConversation = create<VoiceConversationState>((set, get) =>
     set((s) => ({ history: [...s.history, { role: "user", content }] }));
   },
 
+  stopPlaying: () => {
+    const { sources, idleTimer } = get();
+    if (idleTimer) clearTimeout(idleTimer);
+
+    sources.forEach(source => {
+        try {
+            source.stop();
+        } catch (e) {
+            // Ignore errors if source has already stopped
+        }
+    });
+
+    set({
+      isPlaying: false,
+      sources: [],
+      idleTimer: null,
+    });
+  },
+
   interrupt: () => {
-    const { ws, audioCtx, idleTimer } = get();
+    get().stopPlaying();
+    set({ isInterrupted: true });
+  },
+
+  disconnect: () => {
+    const { ws, audioCtx, idleTimer, reconnectTimer } = get();
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    set({ characterId: null, reconnectTimer: null }); // Prevent reconnection
+
     if (ws && ws.readyState < 2) {
       try { ws.close(); } catch {}
     }
@@ -201,7 +248,7 @@ export const useVoiceConversation = create<VoiceConversationState>((set, get) =>
       try { audioCtx.close(); } catch {}
     }
     if (idleTimer) clearTimeout(idleTimer);
-    set({ ws: null, audioCtx: null, gainNode: null, isPlaying: false, playQueueTime: undefined, connection: "disconnected", idleTimer: null });
+    set({ ws: null, audioCtx: null, gainNode: null, isPlaying: false, connection: "idle", idleTimer: null, history: [] });
   },
 
   clear: () => set({ history: [] }),
