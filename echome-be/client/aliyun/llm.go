@@ -1,11 +1,13 @@
 package aliyun
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -101,7 +103,7 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	// 使用配置的LLM参数
 	model := "qwen-turbo"       // 默认值
 	maxTokens := 1500           // 默认值
-	temperature := float32(0.7) // 明确声明为float32类型
+	temperature := float32(0.7)
 
 	if client.llmModel != "" {
 		model = client.llmModel
@@ -222,4 +224,191 @@ func (client *AliClient) doRequestWithRetry(req *http.Request, maxRetries int) (
 	}
 
 	return nil, fmt.Errorf("request failed after %d retries: %w", maxRetries, lastErr)
+}
+
+// DashScopeChatRequest 阿里云DashScope请求结构
+type DashScopeChatRequest struct {
+	Model    string              `json:"model"`
+	Messages []map[string]string `json:"messages"`
+	Stream   bool                `json:"stream"`
+}
+
+// DashScopeStreamChunk DashScope流式响应块结构
+type DashScopeStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content,omitempty"`
+			Role    string `json:"role,omitempty"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason,omitempty"`
+	} `json:"choices,omitempty"`
+}
+
+// GenerateStreamResponse 生成AI流式响应（使用阿里云DashScope兼容模式）
+func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string, onChunk func(string) error) error {
+	// 输入验证
+	if strings.TrimSpace(userInput) == "" {
+		return fmt.Errorf("user input cannot be empty")
+	}
+
+	// 输入长度限制
+	if len(userInput) > 4000 {
+		return fmt.Errorf("user input too long (max 4000 characters)")
+	}
+
+	// 添加超时控制
+	timeout := 30 * time.Second
+	if client.timeout > 0 {
+		timeout = time.Duration(client.timeout) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// 使用配置的LLM参数
+	model := "qwen-plus"       // 默认使用qwen-plus模型
+	if client.llmModel != "" {
+		model = client.llmModel
+	}
+
+	// 构建消息列表，支持角色上下文和对话历史
+	var messages []map[string]string
+
+	// 如果有角色上下文，添加系统消息
+	if characterContext != "" {
+		messages = append(messages, map[string]string{
+			"role":    "system",
+			"content": fmt.Sprintf("你是一个AI助手，请根据以下角色设定进行对话：%s", characterContext),
+		})
+	}
+
+	// 添加对话历史消息
+	for _, msg := range conversationHistory {
+		role, roleOk := msg["role"]
+		content, contentOk := msg["content"]
+		// 确保角色和内容都存在，且角色是合法的
+		if roleOk && contentOk && (role == "user" || role == "assistant") {
+			messages = append(messages, map[string]string{
+				"role":    role,
+				"content": content,
+			})
+		}
+	}
+
+	// 添加最新的用户输入
+	messages = append(messages, map[string]string{
+		"role":    "user",
+		"content": userInput,
+	})
+
+	// 构建请求
+	request := DashScopeChatRequest{
+		Model:    model,
+		Messages: messages,
+		Stream:   true,
+	}
+
+	// 序列化请求
+	requestBody, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// 创建HTTP请求
+	url := "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// 设置请求头
+	req.Header.Set("Authorization", "Bearer " + client.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+
+	// 发送请求
+	resp, err := client.doRequestWithRetry(req, 3)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 处理错误响应
+	if resp.StatusCode != http.StatusOK {
+		responseBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("API request failed with status %d and could not read response: %w", resp.StatusCode, readErr)
+		}
+		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(responseBody))
+	}
+
+	// 处理流式响应
+	reader := bufio.NewReader(resp.Body)
+	log.Println("Starting to process streaming response using DashScope compatible mode")
+
+	for {
+		// 检查上下文是否已取消
+		select {
+		case <-ctx.Done():
+			log.Println("Streaming context canceled")
+			return ctx.Err()
+		default:
+		}
+
+		// 读取一行数据
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				// 流结束
+				log.Println("Reached end of streaming response")
+				break
+			}
+			log.Printf("Error reading stream line: %v", err)
+			return fmt.Errorf("failed to read stream: %w", err)
+		}
+
+		// 记录原始数据行（调试用）
+		log.Printf("Received stream line: %s", line)
+
+		// 跳过空行
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// 检查是否是数据行（固定格式：data: 开头）
+		const dataPrefix = "data: "
+		if strings.HasPrefix(line, dataPrefix) {
+			// 提取JSON数据（直接去掉固定前缀）
+			jsonData := line[len(dataPrefix):]
+
+			// 检查是否是结束标记
+			if jsonData == "[DONE]" {
+				break
+			}
+
+			// 解析JSON
+			var chunk DashScopeStreamChunk
+			if err := json.Unmarshal([]byte(jsonData), &chunk); err != nil {
+				log.Printf("Warning: Failed to unmarshal stream chunk: %v", err)
+				continue
+			}
+
+			// 处理内容块
+				if len(chunk.Choices) > 0 {
+					choice := chunk.Choices[0]
+					content := choice.Delta.Content
+
+					// 如果有文本内容，通过回调函数返回
+					if content != "" {
+						if err := onChunk(content); err != nil {
+							return fmt.Errorf("callback error: %w", err)
+						}
+					}
+			}
+		}
+	}
+
+	log.Println("Streaming response processing completed using DashScope compatible mode")
+
+	return nil
 }

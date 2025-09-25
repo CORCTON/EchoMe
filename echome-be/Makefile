@@ -5,6 +5,10 @@ APP_NAME = echome-be
 # 默认配置文件路径
 CONFIG_PATH = config/etc/config.yaml
 
+# 代码编译测试
+vet:
+	go vet ./...
+
 # 构建二进制文件
 build:
 	go build -o $(APP_NAME) ./cmd/api
