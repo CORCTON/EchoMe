@@ -149,15 +149,10 @@ paths:
       summary: 文本转语音WebSocket连接
       tags:
       - websocket
-  /ws/voice-conversation/{characterId}:
+  /ws/voice-conversation:
     get:
-      description: 建立WebSocket连接，用户发送文本，返回AI生成的语音消息（单用户模式，无会话管理）
+      description: 建立WebSocket连接，用户通过WebSocket消息发送语音或文本，返回AI生成的响应
       parameters:
-      - description: 角色ID
-        in: path
-        name: characterId
-        required: true
-        type: string
       - default: zh
         description: 语言
         in: query
@@ -178,7 +173,7 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: 单用户语音对话WebSocket连接
+      summary: 语音对话WebSocket连接
       tags:
       - websocket
   /ws/webrtc/{sessionId}/{userId}:

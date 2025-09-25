@@ -100,7 +100,7 @@ func (a *Application) validateRoutes() error {
 		"/ws/asr",
 		"/ws/tts",
 		"/ws/webrtc/:sessionId/:userId",
-		"/ws/voice-conversation/:characterId",
+		"/ws/voice-conversation",
 		"/health",
 	}
 
@@ -195,11 +195,11 @@ func (a *Application) healthCheckHandler(c echo.Context) error {
 		"services":  services,
 		"endpoints": map[string][]string{
 			"websocket": {
-			"/ws/asr",
-			"/ws/tts",
-			"/ws/webrtc/:sessionId/:userId",
-			"/ws/voice-conversation/:characterId",
-		},
+		"/ws/asr",
+		"/ws/tts",
+		"/ws/webrtc/:sessionId/:userId",
+		"/ws/voice-conversation",
+	},
 			"api": {
 				"/health",
 				"/swagger/*",
