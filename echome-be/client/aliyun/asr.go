@@ -19,7 +19,7 @@ func DefaultASRConfig() domain.ASRConfig {
 	return domain.ASRConfig{
 		Model:         "paraformer-realtime-v2",
 		Format:        "pcm",
-		SampleRate:    24000,
+		SampleRate:    16000,
 		LanguageHints: []string{"zh", "en"},
 	}
 }

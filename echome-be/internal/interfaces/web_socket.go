@@ -34,7 +34,7 @@ func (h *WebSocketHandlers) RegisterRoutes(e *echo.Echo) {
 	e.GET("/ws/asr", h.HandleASRWebSocket)
 	e.GET("/ws/tts", h.HandleTTSWebSocket)
 	e.GET("/ws/webrtc/:sessionId/:userId", h.HandleWebRTCWebSocket)
-	e.GET("/ws/voice-conversation/:characterId", h.HandleVoiceConversationWebSocket)
+	e.GET("/ws/voice-conversation", h.HandleVoiceConversationWebSocket)
 }
 
 // HandleASRWebSocket handles ASR WebSocket connection
@@ -164,25 +164,17 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 	return nil
 }
 
-// HandleVoiceConversationWebSocket handles text input and returns AI voice message via WebSocket
-// @Summary 单用户语音对话WebSocket连接
-// @Description 建立WebSocket连接，用户发送文本，返回AI生成的语音消息（单用户模式，无会话管理）
+// HandleVoiceConversationWebSocket handles voice conversation via WebSocket
+// @Summary 语音对话WebSocket连接
+// @Description 建立WebSocket连接，用户通过WebSocket消息发送语音或文本，返回AI生成的响应
 // @Tags websocket
-// @Param characterId path string true "角色ID"
 // @Param language query string false "语言" default(zh)
 // @Success 101
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /ws/voice-conversation/{characterId} [get]
+// @Router /ws/voice-conversation [get]
 func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) error {
 	log.Printf("Voice conversation WebSocket connection requested")
-
-	// Parse path parameters - 使用正确的参数名
-	characterId := c.Param("characterId")
-	if characterId == "" {
-		log.Printf("Missing character ID")
-		return response.BadRequest(c, "Character ID is required")
-	}
 
 	// Parse query parameters
 	language := c.QueryParam("language")
@@ -202,30 +194,15 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 	if err := ws.WriteJSON(map[string]any{
 		"type":        "connection_established",
 		"language":    language,
-		"characterId": characterId,
 		"timestamp":   time.Now(),
 	}); err != nil {
 		log.Printf("Failed to send connection established message: %v", err)
 		return err
 	}
 
-	// 验证characterId格式并解析为UUID
-	characterUUID, err := uuid.Parse(characterId)
-	if err != nil {
-		log.Printf("Invalid characterId format: %v", err)
-		return response.BadRequest(c, "Invalid character ID format")
-	}
-	
-	// 检查是否为nil UUID
-	if characterUUID == uuid.Nil {
-		log.Printf("Nil character ID provided")
-		return response.BadRequest(c, "Character ID cannot be nil")
-	}
-
-	// Create simplified voice conversation request
+	// Create voice conversation request without character ID (will be obtained from JSON message)
 	voiceConvReq := &domain.VoiceConversationRequest{
 		WebSocketConn: ws,
-		CharacterID:   characterUUID,
 		Language:      language,
 	}
 

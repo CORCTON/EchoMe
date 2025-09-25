@@ -25,13 +25,13 @@ type MessageRepository interface {
 
 // ConversationService provides voice conversation functionality
 type ConversationService interface {
-	// StartVoiceConversation starts a voice conversation session
+	// StartVoiceConversation 启动语音对话会话
 	StartVoiceConversation(ctx context.Context, req *VoiceConversationRequest) error
 
-	// ProcessTextMessage processes a text message and returns AI response
+	// ProcessTextMessage 处理文本消息并返回AI响应
 	ProcessTextMessage(ctx context.Context, req *TextMessageRequest) (*TextMessageResponse, error)
 
-	// GetCharacterVoiceConfig retrieves voice configuration for a character
+	// GetCharacterVoiceConfig 获取角色的语音配置
 	GetCharacterVoiceConfig(characterID uuid.UUID) (*VoiceConfig, error)
 }
 
@@ -42,36 +42,33 @@ type VoiceConversationRequest struct {
 	Language      string          `json:"language,omitempty"`
 }
 
-// TextMessageRequest represents a text message request (simplified)
-type TextMessageRequest struct {
-	UserInput string `json:"user_input"`
-	UserID    string `json:"user_id"`
+// ContextMessage 对话上下文中的单条消息
+
+type ContextMessage struct {
+	Role    string `json:"role"`    // "system", "user", or "assistant"
+	Content string `json:"content"` // Message content
 }
 
-// TextMessageResponse represents a text message response
+// TextMessageRequest 带上下文的文本消息请求
+
+type TextMessageRequest struct {
+	UserInput string           `json:"user_input"`
+	UserID    string           `json:"user_id"`
+	CharacterID string        `json:"character_id,omitempty"`
+	Messages  []ContextMessage `json:"messages,omitempty"` // Conversation context
+}
+
+// TextMessageResponse 文本消息响应
 type TextMessageResponse struct {
 	Response  string    `json:"response"`
 	MessageID uuid.UUID `json:"message_id"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// VoiceConfig represents voice conversation configuration
+// VoiceConfig 角色的语音配置
 type VoiceConfig struct {
 	Character *Character `json:"character"`
 	ASRConfig ASRConfig  `json:"asr_config"`
 	TTSConfig TTSConfig  `json:"tts_config"`
 	Language  string     `json:"language"`
-}
-
-// AIRequest represents a request to AI service with context (simplified)
-type AIRequest struct {
-	UserInput        string     `json:"user_input"`
-	CharacterContext *Character `json:"character_context"`
-	Language         string     `json:"language"`
-}
-
-// AIResponse represents AI service response
-type AIResponse struct {
-	Text     string                 `json:"text"`
-	Metadata map[string]interface{} `json:"metadata"`
 }
