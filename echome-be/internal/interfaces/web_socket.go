@@ -176,84 +176,74 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) error {
 	log.Printf("Voice conversation WebSocket connection requested")
 
-	// Parse query parameters
+	// 获取查询参数
 	language := c.QueryParam("language")
 	if language == "" {
-		language = "zh"
+			language = "zh"
 	}
 
-	// Upgrade HTTP connection to WebSocket
+	// 升级到WebSocket
 	ws, err := upgradeToWebSocket(c)
 	if err != nil {
-		log.Printf("Failed to upgrade to WebSocket: %v", err)
-		return err
+			log.Printf("Failed to upgrade to WebSocket: %v", err)
+			return err
 	}
 	defer ws.Close()
 
-	// Send connection established message
+	// 发送连接建立消息
 	if err := ws.WriteJSON(map[string]any{
-		"type":        "connection_established",
-		"language":    language,
-		"timestamp":   time.Now(),
+			"type":      "connection_established",
+			"language":  language,
+			"timestamp": time.Now(),
 	}); err != nil {
-		log.Printf("Failed to send connection established message: %v", err)
-		return err
+			log.Printf("Failed to send connection established message: %v", err)
+			return err
 	}
 
-	// Create voice conversation request without character ID (will be obtained from JSON message)
+	// 创建语音对话请求
 	voiceConvReq := &domain.VoiceConversationRequest{
-		WebSocketConn: ws,
-		Language:      language,
+			WebSocketConn: ws,
+			Language:      language,
 	}
 
-	// Start voice conversation using conversation service
+	// 启动语音对话
 	if err := h.conversationService.StartVoiceConversation(c.Request().Context(), voiceConvReq); err != nil {
-		log.Printf("Voice conversation error: %v", err)
-		// Send error message to client before closing
-		_ = ws.WriteJSON(map[string]string{
-			"type":    "error",
-			"message": "Failed to start voice conversation: " + err.Error(),
-		})
-		return err
+			log.Printf("Voice conversation error: %v", err)
+			_ = ws.WriteJSON(map[string]string{
+					"type":    "error",
+					"message": "Failed to start voice conversation: " + err.Error(),
+			})
+			return err
 	}
 	return nil
 }
 
-// upgradeToWebSocket upgrades an HTTP connection to a WebSocket connection
+// 升级HTTP连接到WebSocket
 func upgradeToWebSocket(c echo.Context) (*websocket.Conn, error) {
-	// 配置 Upgrader
 	upgrader := websocket.Upgrader{
-		// 配置缓冲区大小，适合音频流
-		ReadBufferSize:  4096,
-		WriteBufferSize: 4096,
-		// 设置握手超时
-		HandshakeTimeout: 10 * time.Second,
-		// 允许所有来源的WebSocket连接，生产环境应该根据需要限制
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
+			ReadBufferSize:  4096,
+			WriteBufferSize: 4096,
+			HandshakeTimeout: 10 * time.Second,
+			CheckOrigin: func(r *http.Request) bool {
+					return true
+			},
 	}
 
-	// 确保响应未提交
 	if c.Response().Committed {
-		return nil, fmt.Errorf("响应已提交，无法升级到WebSocket")
+			return nil, fmt.Errorf("响应已提交，无法升级到WebSocket")
 	}
 
-	// 升级连接
 	conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
-		log.Printf("WebSocket升级失败: %v", err)
-		return nil, fmt.Errorf("WebSocket升级失败: %w", err)
+			log.Printf("WebSocket升级失败: %v", err)
+			return nil, fmt.Errorf("WebSocket升级失败: %w", err)
 	}
 
-	// 支持上下文取消
 	go func() {
-		<-c.Request().Context().Done()
-		// 优雅关闭WebSocket连接，发送关闭帧
-		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-		// 给对方一些时间处理关闭帧
-		time.Sleep(500 * time.Millisecond)
-		conn.Close()
+			<-c.Request().Context().Done()
+			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			time.Sleep(500 * time.Millisecond)
+			conn.Close()
 	}()
 
 	return conn, nil
