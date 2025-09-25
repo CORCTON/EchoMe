@@ -2,7 +2,6 @@ package domain
 
 import (
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 )
 
 // WebRTCService 定义WebRTC服务接口
@@ -26,7 +25,7 @@ import (
 	SessionID  uuid.UUID `json:"sessionId"`
 	UserID     string    `json:"userId"`
 	Status     string    `json:"status"` // "connecting", "connected", "disconnected"
-	SocketConn *websocket.Conn
+	SocketConn WebSocketConn
 }
 
 // SignalMessage 表示WebRTC信令消息

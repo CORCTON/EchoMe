@@ -1,7 +1,6 @@
 package infrastructure
 
 import (
-	"context"
 	"errors"
 	"log"
 	"sync"
@@ -21,7 +20,7 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 )
 
-var _ domain.WSWriter = (*SafeConn)(nil) // 确保 SafeConn 实现了接口
+var _ domain.WebSocketConn = (*SafeConn)(nil) // 确保 SafeConn 实现了接口
 
 // SafeConn 保证 WebSocket 写操作串行化，并内置心跳机制
 type SafeConn struct {
@@ -42,15 +41,15 @@ func NewSafeConn(conn *websocket.Conn) *SafeConn {
 
 	// --- 启动心跳机制 ---
 	// 1. 设置初始的读超时
-	if err := sc.conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+	if err := sc.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
 		log.Printf("NewSafeConn: Failed to set initial read deadline: %v", err)
 		// 也许应该立即关闭并返回一个错误的conn
 	}
 
 	// 2. 设置 Pong 处理器来延长读超时
-	sc.conn.SetPongHandler(func(string) error {
+	sc.SetPongHandler(func(string) error {
 		log.Println("Pong received, extending read deadline.")
-		return sc.conn.SetReadDeadline(time.Now().Add(pongWait))
+		return sc.SetReadDeadline(time.Now().Add(pongWait))
 	})
 
 	// 3. 启动后台的写循环和 Ping 循环
@@ -87,11 +86,11 @@ func (sc *SafeConn) pingLoop() {
 		case <-ticker.C:
 			// 将 Ping 操作也放入写队列，以保证所有写操作是串行的
 			pingFunc := func() error {
-				if err := sc.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-					return err
-				}
-				return sc.conn.WriteMessage(websocket.PingMessage, nil)
+			if err := sc.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				return err
 			}
+			return sc.WriteMessage(websocket.PingMessage, nil)
+		}
 			select {
 			case sc.writeCh <- pingFunc:
 				// Ping 已入队
@@ -108,44 +107,49 @@ func (sc *SafeConn) pingLoop() {
 	}
 }
 
-// WriteJSON 安全写 JSON 消息
+// ReadJSON 实现 domain.WebSocketConn 接口
+func (sc *SafeConn) ReadJSON(v any) error {
+	return sc.conn.ReadJSON(v)
+}
+
+// ReadMessage 实现 domain.WebSocketConn 接口
+func (sc *SafeConn) ReadMessage() (messageType int, p []byte, err error) {
+	return sc.conn.ReadMessage()
+}
+
+// WriteJSON 实现 domain.WebSocketConn 接口
 func (sc *SafeConn) WriteJSON(v any) error {
 	return sc.queueWrite(func() error {
-		if err := sc.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+		if err := sc.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
 			return err
 		}
 		return sc.conn.WriteJSON(v)
 	})
 }
 
-// WriteMessage 安全写文本或二进制消息
+// WriteMessage 实现 domain.WebSocketConn 接口
 func (sc *SafeConn) WriteMessage(messageType int, data []byte) error {
 	return sc.queueWrite(func() error {
-		if err := sc.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+		if err := sc.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
 			return err
 		}
 		return sc.conn.WriteMessage(messageType, data)
 	})
 }
 
-// WriteJSONCtx 支持超时控制的安全写 JSON
-func (sc *SafeConn) WriteJSONCtx(ctx context.Context, v any) error {
-	// 注意：这里的 ctx 只是用于入队阶段，真正的写入超时由 writeWait 控制
-	writeFunc := func() error {
-		if err := sc.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-			return err
-		}
-		return sc.conn.WriteJSON(v)
-	}
+// SetReadDeadline 实现 domain.WebSocketConn 接口
+func (sc *SafeConn) SetReadDeadline(t time.Time) error {
+	return sc.conn.SetReadDeadline(t)
+}
 
-	select {
-	case sc.writeCh <- writeFunc:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-sc.closed:
-		return errors.New("connection already closed")
-	}
+// SetWriteDeadline 实现 domain.WebSocketConn 接口
+func (sc *SafeConn) SetWriteDeadline(t time.Time) error {
+	return sc.conn.SetWriteDeadline(t)
+}
+
+// SetPongHandler 实现 domain.WebSocketConn 接口
+func (sc *SafeConn) SetPongHandler(h func(string) error) {
+	sc.conn.SetPongHandler(h)
 }
 
 // queueWrite 是一个辅助函数，用于将写操作放入队列
@@ -158,16 +162,12 @@ func (sc *SafeConn) queueWrite(fn func() error) error {
 	}
 }
 
-// Close 关闭连接
+// Close 实现 domain.WebSocketConn 接口
 func (sc *SafeConn) Close() error {
 	sc.once.Do(func() {
-		close(sc.writeCh) // 停止接收新的写任务
+		// 关闭写通道，停止写循环
+		close(sc.writeCh)
 	})
 	<-sc.closed // 等待 writeLoop 结束并关闭底层连接
 	return sc.closeErr
-}
-
-// Underlying 返回底层原始 websocket.Conn（主要用于读）
-func (sc *SafeConn) Underlying() *websocket.Conn {
-	return sc.conn
 }
