@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -47,7 +46,7 @@ func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *d
 	var err error
 
 	if req.CharacterID != uuid.Nil {
-		character, err = s.characterService.GetCharacterByID(ctx,req.CharacterID)
+		character, err = s.characterService.GetCharacterByID(ctx, req.CharacterID)
 		if err != nil {
 			zap.L().Warn("获取角色失败", zap.Error(err))
 			character = nil
@@ -146,18 +145,13 @@ func (s *ConversationService) handleStreamingConversation(
 ) error {
 	_ = sc.WriteJSON(map[string]any{"type": "stream_start", "timestamp": time.Now()})
 
-	var fullResponse strings.Builder
-
 	// Channel for LLM text chunks
 	llmTextChan := make(chan string, 100) // Buffered channel
 
 	// 根据角色是否开启复刻决定是否使用复刻音色
-	var ttsConfig domain.TTSConfig
-	if character != nil && character.Flag && character.Voice!=""{
-		ttsConfig = aliyun.DefaultVoiceCloneTTSConfig()
+	 ttsConfig := aliyun.DefaultTTSConfig()
+	if character != nil && character.Flag && character.Voice != "" {
 		ttsConfig.Voice = character.Voice
-	} else {
-		ttsConfig = aliyun.DefaultTTSConfig()
 	}
 
 	g, conversationCtx := errgroup.WithContext(ctx)
@@ -174,7 +168,6 @@ func (s *ConversationService) handleStreamingConversation(
 
 		onChunk := func(chunk string) error {
 			if chunk != "" {
-				fullResponse.WriteString(chunk)
 				// Send text chunk to client for display
 				if err := sc.WriteJSON(map[string]any{
 					"type":      "stream_chunk",
@@ -194,7 +187,13 @@ func (s *ConversationService) handleStreamingConversation(
 			return nil
 		}
 
-		return s.aiService.GenerateStreamResponse(conversationCtx, userInput, 	character.Prompt, conversationHistory, onChunk)
+		// 安全地获取角色提示词
+		characterPrompt := ""
+		if character != nil {
+			characterPrompt = character.Prompt
+		}
+
+		return s.aiService.GenerateStreamResponse(conversationCtx, userInput, characterPrompt, conversationHistory, onChunk)
 	})
 
 	// Wait for both goroutines to finish
@@ -213,7 +212,6 @@ func (s *ConversationService) handleStreamingConversation(
 	// Send stream end message
 	_ = sc.WriteJSON(map[string]any{
 		"type":      "stream_end",
-		"response":  fullResponse.String(),
 		"timestamp": time.Now(),
 	})
 	return nil

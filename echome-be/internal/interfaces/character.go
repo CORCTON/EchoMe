@@ -7,6 +7,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// CreateCharacterRequest 定义创建角色请求体结构
+type CreateCharacterRequest struct {
+	Audio       *string `json:"audio"`       // 可选，音频文件
+	Description *string `json:"description"` // 可选，角色描述
+	Name        string `json:"name"`        // 必须，角色名称
+	Prompt      string `json:"prompt"`      // 必须，角色提示词
+	Avatar      *string `json:"avatar"`      // 可选，角色头像
+	Flag        bool   `json:"flag"`        // 必须，标志位
+}
+
 type CharacterHandlers struct {
 	characterService domain.CharacterService
 }
@@ -31,7 +41,7 @@ func (h *CharacterHandlers) RegisterRoutes(e *echo.Echo) {
 // @Accept json
 // @Produce json
 // @Success 200 {array} domain.Character
-// @Router /characters [get]
+// @Router /api/characters [get]
 func (h *CharacterHandlers) GetCharacters(c echo.Context) error {
 	characters, err := h.characterService.GetAllCharacters(c.Request().Context())
 	if err != nil {
@@ -41,7 +51,6 @@ func (h *CharacterHandlers) GetCharacters(c echo.Context) error {
 	return response.Success(c, characters)
 }
 
-
 // GetCharacterByID handles GET /api/characters/:id
 // @Summary 获取角色详情
 // @Description 根据角色ID获取详细信息
@@ -50,7 +59,7 @@ func (h *CharacterHandlers) GetCharacters(c echo.Context) error {
 // @Produce json
 // @Param id path string true "角色ID"
 // @Success 200 {object} domain.Character
-// @Router /characters/{id} [get]
+// @Router /api/characters/{id} [get]
 func (h *CharacterHandlers) GetCharacterByID(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -65,68 +74,41 @@ func (h *CharacterHandlers) GetCharacterByID(c echo.Context) error {
 	return response.Success(c, character)
 }
 
-
 // CreateCharacter handles POST /api/character
 // @Summary 创建角色（语音克隆）
 // @Description 通过语音克隆创建角色
 // @Tags characters
 // @Accept json
 // @Produce json
-// @Param request body map[string]any true "包含audio（可选）、description(可选)、name（必须）、prompt（必须）、avatar（可选）和flag（必须）的请求体"
+// @Param request body interfaces.CreateCharacterRequest true "创建角色的请求体参数"
 // @Success 201 {object} domain.Character
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /character [post]
+// @Router /api/character [post]
 func (h *CharacterHandlers) CreateCharacter(c echo.Context) error {
-	var requestBody map[string]any
+	var requestBody CreateCharacterRequest
 	if err := c.Bind(&requestBody); err != nil {
 		return response.BadRequest(c, "Invalid request body", err.Error())
 	}
 
 	// 验证必填字段
-	name, nameOk := requestBody["name"].(string)
-	prompt, promptOk := requestBody["prompt"].(string)
-	flag, flagOk := requestBody["flag"]
-	if !nameOk || name == "" || !promptOk || prompt == "" || !flagOk {
+	if requestBody.Name == "" || requestBody.Prompt == "" {
 		return response.BadRequest(c, "Missing required fields", "name, prompt and flag are required")
 	}
 
-	// 检查flag是否为布尔类型
-	flagBool, ok := flag.(bool)
-	if !ok {
-		return response.BadRequest(c, "Invalid field type", "flag must be a boolean")
-	}
-
-	// 解析可选字段
-	audio := getStringField(requestBody, "audio")
-
-	avatar := getStringField(requestBody, "avatar")
-
-	description := getStringField(requestBody, "description")
-
 	// 创建角色信息
 	characterInfo := &domain.Character{
-		Name:        name,
-		Prompt:      prompt,
-		Avatar:      avatar,
-		Description: description,
-		Flag:        flagBool,
+		Name:        requestBody.Name,
+		Prompt:      requestBody.Prompt,
+		Avatar:      requestBody.Avatar,
+		Description: requestBody.Description,
+		Flag:        requestBody.Flag,
 	}
-		// 执行语音克隆并创建角色
-		character, err := h.characterService.CreateCharacter(c.Request().Context(), audio, characterInfo)
-		if err != nil {
-			return response.InternalError(c, "Failed to clone voice and create character", err.Error())
-		}
-
-		return response.Created(c, character)
-}
-
-// getStringField 从map中获取字符串字段，处理类型断言
-func getStringField(data map[string]any, field string) *string {
-	value, ok := data[field]
-	if !ok {
-		return nil
+	// 执行语音克隆并创建角色
+	character, err := h.characterService.CreateCharacter(c.Request().Context(), requestBody.Audio, characterInfo)
+	if err != nil {
+		return response.InternalError(c, "Failed to clone voice and create character", err.Error())
 	}
-	strValue, _ := value.(string)
-	return &strValue
+
+	return response.Created(c, character)
 }

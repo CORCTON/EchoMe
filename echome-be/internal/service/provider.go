@@ -9,9 +9,9 @@ import (
 )
 
 var ServiceProviderSet = wire.NewSet(
-		webrtc.NewWebRTCService,
-		conversation.NewConversationService,
-		wire.Bind(new(domain.ConversationService), new(*conversation.ConversationService)),
-		character.NewCharacterService,
-		wire.Bind(new(domain.CharacterService), new(*character.CharacterService)),
+	webrtc.NewWebRTCService,
+	conversation.NewConversationService,
+	wire.Bind(new(domain.ConversationService), new(*conversation.ConversationService)),
+	character.NewCharacterService,
+	wire.Bind(new(domain.CharacterService), new(*character.CharacterService)),
 )

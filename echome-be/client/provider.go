@@ -25,13 +25,13 @@ func NewAIServiceFromConfig(cfg *config.Config) (*aliyun.AliClient, error) {
 	}
 	// 使用配置中的所有相关参数
 	aiService, err := NewAIService(
-		AIServiceType(cfg.AI.ServiceType), 
-		cfg.Aliyun.APIKey, 
-		cfg.Aliyun.Endpoint, 
-		cfg.AI.Timeout, 
-		cfg.AI.MaxRetries, 
-		cfg.Aliyun.LLM.Model, 
-		cfg.Aliyun.LLM.MaxTokens, 
+		AIServiceType(cfg.AI.ServiceType),
+		cfg.Aliyun.APIKey,
+		cfg.Aliyun.Endpoint,
+		cfg.AI.Timeout,
+		cfg.AI.MaxRetries,
+		cfg.Aliyun.LLM.Model,
+		cfg.Aliyun.LLM.MaxTokens,
 		cfg.Aliyun.LLM.Temperature,
 	)
 	if err != nil {

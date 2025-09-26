@@ -58,9 +58,9 @@ type ASRConfig struct {
 
 // TTSConfig 定义TTS配置参数
 type TTSConfig struct {
-	Model          string  // qwen3-tts-flash-realtime / cosyvoice-v2
-	Voice          string  // 克隆音色的voice_id/	非克隆时选择模型自带角色名
-	Format string  // pcm / mp3
-	Mode           string  // server_commit / commit
-	Lang           string  // 语言类型，如"zh"、"en"等
+	Model  string // qwen3-tts-flash-realtime / cosyvoice-v2
+	Voice  string // 克隆音色的voice_id/	非克隆时选择模型自带角色名
+	Format string // pcm / mp3
+	Mode   string // server_commit / commit
+	Lang   string // 语言类型，如"zh"、"en"等
 }

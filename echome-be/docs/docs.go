@@ -23,35 +23,9 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/characters": {
-            "get": {
-                "description": "获取所有可用角色的列表",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "characters"
-                ],
-                "summary": "获取所有角色",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/domain.Character"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/characters/clone-voice": {
+        "/api/character": {
             "post": {
-                "description": "通过语音克隆创建带有克隆声音的角色",
+                "description": "通过语音克隆创建角色",
                 "consumes": [
                     "application/json"
                 ],
@@ -61,16 +35,15 @@ const docTemplate = `{
                 "tags": [
                     "characters"
                 ],
-                "summary": "语音克隆并创建角色",
+                "summary": "创建角色（语音克隆）",
                 "parameters": [
                     {
-                        "description": "包含voiceCloneConfig和characterInfo的请求体",
+                        "description": "创建角色的请求体参数",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/interfaces.CreateCharacterRequest"
                         }
                     }
                 ],
@@ -102,7 +75,33 @@ const docTemplate = `{
                 }
             }
         },
-        "/characters/{id}": {
+        "/api/characters": {
+            "get": {
+                "description": "获取所有可用角色的列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "characters"
+                ],
+                "summary": "获取所有角色",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Character"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/characters/{id}": {
             "get": {
                 "description": "根据角色ID获取详细信息",
                 "consumes": [
@@ -241,7 +240,7 @@ const docTemplate = `{
         "domain.Character": {
             "type": "object",
             "properties": {
-                "avatar_url": {
+                "avatar": {
                     "description": "角色头像URL",
                     "type": "string"
                 },
@@ -249,8 +248,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "description": {
-                    "description": "角色提示词",
+                    "description": "角色描述",
                     "type": "string"
+                },
+                "flag": {
+                    "description": "是否克隆音色",
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string"
@@ -259,36 +262,48 @@ const docTemplate = `{
                     "description": "角色名",
                     "type": "string"
                 },
-                "persona": {
-                    "description": "角色性格描述",
+                "prompt": {
+                    "description": "角色提示词",
                     "type": "string"
+                },
+                "status": {
+                    "description": "音色状态，使用枚举值: 1-审核中, 2-可用, 3-禁用",
+                    "type": "integer"
                 },
                 "updated_at": {
                     "type": "string"
                 },
-                "voice_config": {
-                    "description": "角色声音配置",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/domain.VoiceProfile"
-                        }
-                    ]
+                "voice": {
+                    "description": "角色音色",
+                    "type": "string"
                 }
             }
         },
-        "domain.VoiceProfile": {
+        "interfaces.CreateCharacterRequest": {
             "type": "object",
             "properties": {
-                "language_hints": {
-                    "description": "传入的时候需要字符串数组，但是只有第一个生效，简化为单字符串",
+                "audio": {
+                    "description": "可选，音频文件",
                     "type": "string"
                 },
-                "speech_rate": {
-                    "description": "语速 (0.5-2.0)",
-                    "type": "number"
+                "avatar": {
+                    "description": "可选，角色头像",
+                    "type": "string"
                 },
-                "voice": {
-                    "description": "Voice 对应克隆音色的voice_id",
+                "description": {
+                    "description": "可选，角色描述",
+                    "type": "string"
+                },
+                "flag": {
+                    "description": "必须，标志位",
+                    "type": "boolean"
+                },
+                "name": {
+                    "description": "必须，角色名称",
+                    "type": "string"
+                },
+                "prompt": {
+                    "description": "必须，角色提示词",
                     "type": "string"
                 }
             }

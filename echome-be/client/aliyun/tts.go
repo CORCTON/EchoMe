@@ -20,8 +20,8 @@ import (
 // DefaultTTSConfig 提供默认 TTS 配置
 func DefaultTTSConfig() domain.TTSConfig {
 	return domain.TTSConfig{
-		Model: "paraformer-realtime-v2",
-		Voice: "Jennifer",
+		Model:  "cosyvoice-v2",
+		Voice:  "longxiaochun_v2",
 		Format: "pcm",
 	}
 }
@@ -197,9 +197,9 @@ func handleAliyunToClient(ctx context.Context, aliWS *websocket.Conn, writer dom
 
 			var resp map[string]interface{}
 			if err := json.Unmarshal(msg, &resp); err != nil {
-			zap.L().Warn("解析阿里云 JSON 失败", zap.Error(err))
-			continue
-		}
+				zap.L().Warn("解析阿里云 JSON 失败", zap.Error(err))
+				continue
+			}
 
 			header, ok := resp["header"].(map[string]interface{})
 			if !ok {

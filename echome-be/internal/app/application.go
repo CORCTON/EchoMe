@@ -108,16 +108,15 @@ func (a *Application) Run() error {
 		return nil
 	})
 
-	// Start voice status checking task
 	g.Go(func() error {
 		ticker := time.NewTicker(10 * time.Minute) // 每10分钟检查一次
 		defer ticker.Stop()
-		
+
 		// 初始启动时立即检查一次
 		if err := a.handler.GetRouter().GetCharacterService().CheckAndUpdatePendingCharacters(gCtx); err != nil {
-		zap.L().Error("Failed to check pending characters on startup", zap.Error(err))
+			zap.L().Error("Failed to check pending characters on startup", zap.Error(err))
 		}
-		
+
 		for {
 			select {
 			case <-gCtx.Done():

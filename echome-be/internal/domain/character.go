@@ -13,32 +13,31 @@ type VoiceProfile struct {
 
 // 角色状态枚举定义
 const (
-	CharacterStatusPending = 1 // 审核中
+	CharacterStatusPending  = 1 // 审核中
 	CharacterStatusApproved = 2 // 可用
 	CharacterStatusDisabled = 3 // 禁用
 )
 
 // Character represents a role in the system
 type Character struct {
-	ID          uuid.UUID     `json:"id"`
+	ID uuid.UUID `json:"id"`
 	// 角色名
-	Name        string        `json:"name"`
+	Name string `json:"name"`
 	// 角色描述
-	Description *string        `json:"description"`
+	Description *string `json:"description"`
 	// 角色提示词
-	Prompt string        `json:"prompt"`
+	Prompt string `json:"prompt"`
 	// 角色头像URL
-	Avatar   *string        `json:"avatar"`
+	Avatar *string `json:"avatar"`
 	// 角色音色
-	Voice   string        `json:"voice"`
+	Voice string `json:"voice"`
 	// 是否克隆音色
-	Flag bool          `json:"flag"`
+	Flag bool `json:"flag"`
 	// 音色状态，使用枚举值: 1-审核中, 2-可用, 3-禁用
-	Status int32        `json:"status"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	Status    int32     `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
-
 
 // CharacterRepository 角色仓库接口
 type CharacterRepository interface {

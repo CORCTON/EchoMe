@@ -14,8 +14,8 @@ type ConversationService interface {
 
 // VoiceConversationRequest 语音对话请求
 type VoiceConversationRequest struct {
-	SafeConn WebSocketConn `json:"-"`
-	CharacterID   uuid.UUID       `json:"character_id"`
+	SafeConn    WebSocketConn `json:"-"`
+	CharacterID uuid.UUID     `json:"character_id"`
 }
 
 // ContextMessage 对话上下文中的单条消息
