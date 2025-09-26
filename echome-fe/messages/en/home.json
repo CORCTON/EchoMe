@@ -1,6 +1,7 @@
 {
   "title": "EchoMe",
   "description": "Have real-time voice conversations with your AI characters",
+  "talk_to": "Talk to {characterName}",
   "try_now": "Try Now",
   "say_something": "Say something...",
   "vad_loading": "Voice Activity Detection loading...",
