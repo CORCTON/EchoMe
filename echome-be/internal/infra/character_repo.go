@@ -23,15 +23,13 @@ type CharacterModel struct {
 	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
 }
 
-// CharacterRepository 实现domain.CharacterRepository接口
+// CharacterRepository 角色仓库
 type CharacterRepository struct {
 	db *gorm.DB
 }
 
-// 确保CharacterRepository实现了domain.CharacterRepository接口
 var _ domain.CharacterRepository = (*CharacterRepository)(nil)
 
-// NewCharacterRepository 创建一个新的CharacterRepository实例
 func NewCharacterRepository(db *gorm.DB) *CharacterRepository {
 	return &CharacterRepository{db: db}
 }

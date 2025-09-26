@@ -5,8 +5,6 @@ import (
 )
 
 // WebSocketConn 定义统一的WebSocket连接接口，封装所有WebSocket操作
-// 不暴露原始连接，提供完整的读写功能
-
 type WebSocketConn interface {
 	// ReadJSON 从WebSocket读取JSON数据
 	ReadJSON(v any) error

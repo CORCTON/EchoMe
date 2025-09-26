@@ -47,9 +47,11 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/characters/clone-voice": {
             "post": {
-                "description": "创建一个新角色",
+                "description": "通过语音克隆创建带有克隆声音的角色",
                 "consumes": [
                     "application/json"
                 ],
@@ -59,15 +61,16 @@ const docTemplate = `{
                 "tags": [
                     "characters"
                 ],
-                "summary": "创建角色",
+                "summary": "语音克隆并创建角色",
                 "parameters": [
                     {
-                        "description": "角色信息",
-                        "name": "character",
+                        "description": "包含voiceCloneConfig和characterInfo的请求体",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/domain.Character"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 ],
@@ -145,29 +148,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/ws/tts": {
-            "get": {
-                "description": "建立文本转语音的WebSocket连接，用于实时文本转语音",
-                "tags": [
-                    "websocket"
-                ],
-                "summary": "文本转语音WebSocket连接",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "文本",
-                        "name": "text",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    }
-                }
-            }
-        },
         "/ws/voice-conversation": {
             "get": {
                 "description": "建立WebSocket连接，用户通过WebSocket消息发送语音或文本，返回AI生成的响应",
@@ -178,9 +158,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "default": "zh",
-                        "description": "语言",
-                        "name": "language",
+                        "description": "角色ID",
+                        "name": "characterId",
                         "in": "query"
                     }
                 ],
@@ -263,58 +242,54 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avatar_url": {
+                    "description": "角色头像URL",
+                    "type": "string"
+                },
+                "created_at": {
                     "type": "string"
                 },
                 "description": {
+                    "description": "角色提示词",
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
                 "name": {
+                    "description": "角色名",
                     "type": "string"
                 },
                 "persona": {
+                    "description": "角色性格描述",
+                    "type": "string"
+                },
+                "updated_at": {
                     "type": "string"
                 },
                 "voice_config": {
-                    "$ref": "#/definitions/domain.VoiceProfile"
+                    "description": "角色声音配置",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.VoiceProfile"
+                        }
+                    ]
                 }
             }
         },
         "domain.VoiceProfile": {
             "type": "object",
             "properties": {
-                "custom_params": {
-                    "description": "Custom parameters for TTS",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "language": {
-                    "description": "Language code (zh-CN, en-US, etc.)",
-                    "type": "string"
-                },
-                "pitch": {
-                    "description": "Pitch adjustment (-500 to 500)",
-                    "type": "number"
-                },
-                "speaking_style": {
-                    "description": "Speaking style",
+                "language_hints": {
+                    "description": "传入的时候需要字符串数组，但是只有第一个生效，简化为单字符串",
                     "type": "string"
                 },
                 "speech_rate": {
-                    "description": "Speech rate (0.5-2.0)",
+                    "description": "语速 (0.5-2.0)",
                     "type": "number"
                 },
                 "voice": {
-                    "description": "Aliyun TTS voice ID",
+                    "description": "Voice 对应克隆音色的voice_id",
                     "type": "string"
-                },
-                "volume": {
-                    "description": "Volume (0.0-1.0)",
-                    "type": "number"
                 }
             }
         }

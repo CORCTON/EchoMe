@@ -313,7 +313,7 @@ func handleModelStudioASRResults(ctx context.Context, asrWS *websocket.Conn, cli
 							fmt.Println("警告: 任务完成但未收到任何识别结果")
 						}
 						// 发送任务完成通知给客户端
-						clientWS.WriteJSON(map[string]any{
+						_ = clientWS.WriteJSON(map[string]any{
 							"type": "asr_finished",
 						})
 						return nil
@@ -329,7 +329,7 @@ func handleModelStudioASRResults(ctx context.Context, asrWS *websocket.Conn, cli
 						}
 						fmt.Printf("ASR任务失败详情: 代码=%s, 消息=%s\n", errorCode, errorMessage)
 						// 发送错误信息给客户端
-						clientWS.WriteJSON(map[string]any{
+						_ = clientWS.WriteJSON(map[string]any{
 							"type":          "asr_error",
 							"error_code":    errorCode,
 							"error_message": errorMessage,

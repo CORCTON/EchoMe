@@ -8,21 +8,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/justin/echome-be/client/aliyun"
 	"github.com/justin/echome-be/internal/domain"
 	"github.com/justin/echome-be/internal/infra"
 	"github.com/justin/echome-be/internal/response"
 	"github.com/labstack/echo/v4"
 )
 
-// WebSocketHandlers handles WebSocket connections
 type WebSocketHandlers struct {
 	webRTCService       domain.WebRTCService
 	aiService           domain.AIService
 	conversationService domain.ConversationService
 }
 
-// NewWebSocketHandlers creates new WebSocket handlers
 func NewWebSocketHandlers(webRTCService domain.WebRTCService, aiService domain.AIService, conversationService domain.ConversationService) *WebSocketHandlers {
 	return &WebSocketHandlers{
 		webRTCService:       webRTCService,
@@ -31,10 +28,9 @@ func NewWebSocketHandlers(webRTCService domain.WebRTCService, aiService domain.A
 	}
 }
 
-// RegisterRoutes registers WebSocket routes
+// RegisterRoutes 注册路由
 func (h *WebSocketHandlers) RegisterRoutes(e *echo.Echo) {
 	e.GET("/ws/asr", h.HandleASRWebSocket)
-	e.GET("/ws/tts", h.HandleTTSWebSocket)
 	e.GET("/ws/webrtc/:sessionId/:userId", h.HandleWebRTCWebSocket)
 	e.GET("/ws/voice-conversation", h.HandleVoiceConversationWebSocket)
 }
@@ -61,33 +57,6 @@ func (h *WebSocketHandlers) HandleASRWebSocket(c echo.Context) error {
 	}
 
 	log.Printf("ASR WebSocket connection closed")
-	return nil
-}
-
-// HandleTTSWebSocket handles TTS WebSocket connection
-// @Summary 文本转语音WebSocket连接
-// @Description 建立文本转语音的WebSocket连接，用于实时文本转语音
-// @Param text path string true "文本"
-// @Tags websocket
-// @Success 101
-// @Router /ws/tts [get]
-func (h *WebSocketHandlers) HandleTTSWebSocket(c echo.Context) error {
-	log.Printf("TTS WebSocket connection requested")
-
-	// Upgrade HTTP connection to WebSocket
-	ws, err := upgradeToWebSocket(c)
-	if err != nil {
-		log.Printf("Failed to upgrade to WebSocket: %v", err)
-		return err
-	}
-	defer ws.Close()
-	// Use AI service to handle TTS WebSocket connection
-	if err := h.aiService.HandleTTS(c.Request().Context(), ws,aliyun.DefaultTTSConfig()); err != nil {
-		log.Printf("TTS WebSocket error: %v", err)
-		return err
-	}
-
-	log.Printf("TTS WebSocket connection closed")
 	return nil
 }
 
