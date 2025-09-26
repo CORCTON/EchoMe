@@ -1,9 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
 
-import { useVadStore } from "@/store/vad";
-import { VoiceActivity } from "@/types/vad";
 import { useVoiceConversation } from "@/store/voice-conversation";
 import { useCharacterStore } from "@/store/character";
 
@@ -15,6 +12,8 @@ import {
 } from "@/components/ui/message";
 import { MessageActionsComponent } from "@/components/ui/message-actions";
 import { AudioAnimation } from "@/components/AudioAnimation";
+import { VoiceActivity } from "@/types/vad";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { Loader } from "@/components/ui/loader";
@@ -24,8 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Paperclip } from "lucide-react";
 
 export default function Page() {
-  const params = useParams<{ id: string }>();
-  const characterId = params?.id ?? "";
+  const characterId = "sol";
 
   const {
     currentCharacter,
@@ -38,10 +36,9 @@ export default function Page() {
     null,
   );
   const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
+  const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { isVadReady, voiceActivity, transcript, initVad, resetTranscript } =
-    useVadStore();
   const {
     history,
     start,
@@ -58,50 +55,14 @@ export default function Page() {
     if (characterId) {
       setCurrentCharacter(characterId);
     }
-  }, [characterId, setCurrentCharacter]);
+  }, [setCurrentCharacter]);
 
   useEffect(() => {
-    const onSpeechEnd = (transcript: string) => {
-      if (transcript && characterId && currentCharacter) {
-        resumeAudio();
-        pushUserMessage(transcript);
-        const latestHistory = useVoiceConversation.getState().history;
-        const messages = [
-          {
-            role: "system" as const,
-            content: currentCharacter?.prompt || "You are a helpful assistant.",
-          },
-          ...latestHistory,
-        ];
-        start({ characterId, messages });
-        resetTranscript();
-      }
-    };
-
-    initVad(onSpeechEnd);
-    return () => {
-      const { disconnect: disconnectVad } = useVadStore.getState();
-      disconnectVad();
-      const { disconnect: disconnectLLM } = useVoiceConversation.getState();
-      disconnectLLM();
-    };
-  }, [
-    initVad,
-    characterId,
-    pushUserMessage,
-    start,
-    resetTranscript,
-    resumeAudio,
-    currentCharacter,
-  ]);
-
-  useEffect(() => {
-    if (isVadReady && !isConversationStarted && characterId) {
-      resumeAudio();
+    if (!isConversationStarted) {
       connectLLM(characterId);
       setIsConversationStarted(true);
     }
-  }, [isVadReady, isConversationStarted, characterId, resumeAudio, connectLLM]);
+  }, [isConversationStarted, connectLLM]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -109,11 +70,22 @@ export default function Page() {
     }
   });
 
-  useEffect(() => {
-    if (voiceActivity === VoiceActivity.Speaking && isPlaying) {
-      interrupt();
+  const handleSendMessage = () => {
+    if (input.trim() && characterId && currentCharacter) {
+      pushUserMessage(input);
+      const latestHistory = useVoiceConversation.getState().history;
+      const messages = [
+        {
+          role: "system" as const,
+          content: currentCharacter?.prompt || "You are a helpful assistant.",
+        },
+        ...latestHistory,
+      ];
+      resumeAudio();
+      start({ characterId, messages });
+      setInput("");
     }
-  }, [voiceActivity, interrupt, isPlaying]);
+  };
 
   const handleModelSettingsReady = (settings: ModelSettings) => {
     if (!currentCharacter) return;
@@ -138,23 +110,10 @@ export default function Page() {
   };
 
   const isUiReady = useMemo(() => {
-    return isVadReady && isConversationStarted;
-  }, [isVadReady, isConversationStarted]);
+    return isConversationStarted;
+  }, [isConversationStarted]);
 
   const t = useTranslations("home");
-
-  const animationActivity = useMemo(() => {
-    if (!isVadReady || !isConversationStarted) {
-      return VoiceActivity.Loading;
-    }
-    if (isPlaying) {
-      return VoiceActivity.Idle;
-    }
-    if (voiceActivity === VoiceActivity.Loading) {
-      return VoiceActivity.Idle;
-    }
-    return voiceActivity;
-  }, [isVadReady, isConversationStarted, voiceActivity, isPlaying]);
 
   const connectionStatusColor = useMemo(() => {
     switch (connection) {
@@ -298,42 +257,27 @@ export default function Page() {
                   </Message>
                 );
               })}
-            {voiceActivity === VoiceActivity.Speaking && transcript && (
-              <Message className="items-start justify-end gap-4">
-                <MessageContent className="bg-white">
-                  {transcript}
-                </MessageContent>
-              </Message>
-            )}
           </div>
         </div>
 
-        <div className="absolute inset-0 pointer-events-none z-10">
-          {!isVadReady && (
-            <div className="absolute inset-0 flex justify-center items-center">
-              <Loader />
-              <span className="sr-only">{t("vad_loading")}</span>
-            </div>
-          )}
-          {isVadReady &&
-            isConversationStarted &&
-            animationActivity === VoiceActivity.Idle &&
-            history.length === 0 && (
-            <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-              <p className="text-lg text-gray-600">{t("say_something")}</p>
-            </div>
-          )}
-
-          <div
-            className={cn(
-              "absolute bottom-10 left-1/2 -translate-x-1/2 w-40 h-40 transition-opacity duration-300 ease-in-out",
-              { "opacity-0": !isVadReady },
-            )}
-          >
-            <AudioAnimation activity={animationActivity} />
-          </div>
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2">
+          <AudioAnimation
+            activity={isPlaying ? VoiceActivity.Speaking : VoiceActivity.Idle}
+          />
         </div>
-        <div className="absolute bottom-8 left-4">
+        <div className="absolute bottom-8 left-4 right-4 flex items-center gap-4">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleSendMessage();
+              }
+            }}
+            placeholder="Type your message..."
+            className="flex-1"
+          />
+          <Button onClick={handleSendMessage}>Send</Button>
           <Button
             variant="ghost"
             size="icon"

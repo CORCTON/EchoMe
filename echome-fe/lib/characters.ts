@@ -65,7 +65,3 @@ export const voiceCharacters: VoiceCharacter[] = [
       "You are Nova, an energetic and enthusiastic AI assistant. You're full of energy, excitement, and passion for helping others. Your responses are dynamic, upbeat, and motivating.",
   },
 ];
-
-export function getCharacterById(id: string): VoiceCharacter | undefined {
-  return voiceCharacters.find((character) => character.id === id);
-}
