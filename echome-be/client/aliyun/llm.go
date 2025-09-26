@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // BailianRequest 阿里云百炼API请求结构
@@ -343,13 +344,13 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 
 	// 处理流式响应
 	reader := bufio.NewReader(resp.Body)
-	log.Println("Starting to process streaming response using DashScope compatible mode")
+	zap.L().Info("Starting to process streaming response using DashScope compatible mode")
 
 	for {
 		// 检查上下文是否已取消
 		select {
 		case <-ctx.Done():
-			log.Println("Streaming context canceled")
+			zap.L().Info("Streaming context canceled")
 			return ctx.Err()
 		default:
 		}
@@ -359,15 +360,15 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 		if err != nil {
 			if err == io.EOF {
 				// 流结束
-				log.Println("Reached end of streaming response")
+				zap.L().Info("Reached end of streaming response")
 				break
 			}
-			log.Printf("Error reading stream line: %v", err)
+			zap.L().Error("Error reading stream line", zap.Error(err))
 			return fmt.Errorf("failed to read stream: %w", err)
 		}
 
 		// 记录原始数据行（调试用）
-		log.Printf("Received stream line: %s", line)
+		zap.L().Debug("Received stream line", zap.String("line", line))
 
 		// 跳过空行
 		line = strings.TrimSpace(line)
@@ -389,7 +390,7 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 			// 解析JSON
 			var chunk DashScopeStreamChunk
 			if err := json.Unmarshal([]byte(jsonData), &chunk); err != nil {
-				log.Printf("Warning: Failed to unmarshal stream chunk: %v", err)
+				zap.L().Warn("Failed to unmarshal stream chunk", zap.Error(err), zap.String("json_data", jsonData))
 				continue
 			}
 
@@ -408,7 +409,7 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 		}
 	}
 
-	log.Println("Streaming response processing completed using DashScope compatible mode")
+	zap.L().Info("Streaming response processing completed using DashScope compatible mode")
 
 	return nil
 }

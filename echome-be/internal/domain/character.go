@@ -7,30 +7,27 @@ import (
 	"github.com/google/uuid"
 )
 
+type VoiceProfile struct {
+	Voice string `json:"voice"`
+}
+
 type Character struct {
 	ID          uuid.UUID     `json:"id"`
 	// 角色名
 	Name        string        `json:"name"`
 	// 角色提示词
-	Description string        `json:"description"`
-	// 角色性格描述
-	Persona     string        `json:"persona"`
+	Prompt string        `json:"prompt"`
 	// 角色头像URL
-	AvatarURL   string        `json:"avatar_url"`
+	Avatar   string        `json:"avatar"`
+	AvatarURL string        `json:"avatar_url"`
+	// 角色描述
+	Description string        `json:"description"`
+	// 角色设定
+	Persona     string        `json:"character_setting"`
 	// 角色声音配置
-	VoiceConfig *VoiceProfile `json:"voice_config,omitempty" gorm:"type:jsonb"`
+	VoiceConfig *VoiceProfile `json:"voice_config,omitempty"`
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   time.Time     `json:"updated_at"`
-}
-
-// VoiceProfile 角色声音配置
-type VoiceProfile struct {
-	// Voice 对应克隆音色的voice_id
-	Voice        string  `json:"voice"`
-	// 语速 (0.5-2.0)      
-	SpeechRate   float32 `json:"speech_rate"`    
-	// 传入的时候需要字符串数组，但是只有第一个生效，简化为单字符串
-	Language      string  `json:"language_hints"`    
 }
 
 

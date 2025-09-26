@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
-	"log"
-
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
@@ -198,9 +198,9 @@ func handleAliyunToClient(ctx context.Context, aliWS *websocket.Conn, writer dom
 
 			var resp map[string]interface{}
 			if err := json.Unmarshal(msg, &resp); err != nil {
-				log.Printf("解析阿里云 JSON 失败: %v", err)
-				continue
-			}
+			zap.L().Warn("解析阿里云 JSON 失败", zap.Error(err))
+			continue
+		}
 
 			header, ok := resp["header"].(map[string]interface{})
 			if !ok {
@@ -219,7 +219,7 @@ func handleAliyunToClient(ctx context.Context, aliWS *websocket.Conn, writer dom
 				default:
 				}
 			case "task-finished":
-				log.Println("阿里云 TTS 任务完成")
+				zap.L().Info("阿里云 TTS 任务完成")
 				return nil
 			case "task-failed":
 				errMsg, _ := header["error_message"].(string)

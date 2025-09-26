@@ -5,9 +5,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
+
+	"go.uber.org/zap"
 
 	"github.com/justin/echome-be/config"
 	"gorm.io/driver/postgres"
@@ -20,6 +21,11 @@ import (
 const postgresTcpDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Shanghai"
 
 func main() {
+	// 初始化zap日志
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+	zap.ReplaceGlobals(logger)
+
 	// 定义命令行参数
 	configPath := flag.String("f", "config/etc/config.yaml", "配置文件路径")
 	
@@ -27,12 +33,12 @@ func main() {
 	flag.Parse()
 
 	// 加载配置
-	cfg := config.Load(*configPath)
+	cfg ,_:= config.Load(*configPath)
 
 	// 查找项目根目录
 	baseDir, err := findProjectRoot()
 	if err != nil {
-		log.Fatalf("Failed to find project root: %v", err)
+		zap.L().Fatal("Failed to find project root", zap.Error(err))
 	}
 
 	// 构建数据库连接字符串
@@ -51,7 +57,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		zap.L().Fatal("Failed to connect to database", zap.Error(err))
 	}
 
 	// 配置代码生成器

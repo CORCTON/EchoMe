@@ -2,9 +2,10 @@ package interfaces
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -42,21 +43,18 @@ func (h *WebSocketHandlers) RegisterRoutes(e *echo.Echo) {
 // @Success 101
 // @Router /ws/asr [get]
 func (h *WebSocketHandlers) HandleASRWebSocket(c echo.Context) error {
-	log.Printf("ASR WebSocket connection requested")
-
 	// Upgrade HTTP connection to WebSocket
 	ws, err := upgradeToWebSocket(c)
 	if err != nil {
-		log.Printf("Failed to upgrade to WebSocket: %v", err)
+		zap.L().Error("Failed to upgrade to WebSocket", zap.Error(err))
 		return err
 	}
 	// Use AI service to handle ASR WebSocket connection
 	if err := h.aiService.HandleASR(c.Request().Context(), ws); err != nil {
-		log.Printf("ASR WebSocket error: %v", err)
+		zap.L().Error("ASR WebSocket error", zap.Error(err))
 		return err
 	}
 
-	log.Printf("ASR WebSocket connection closed")
 	return nil
 }
 
@@ -103,7 +101,7 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 		"connectionId": connection.ID,
 	}); err != nil {
 		if closeErr := h.webRTCService.ClosePeerConnection(connection.ID); closeErr != nil {
-			log.Printf("Failed to close WebRTC peer connection: %v", closeErr)
+			zap.L().Error("Failed to close WebRTC peer connection", zap.Error(closeErr))
 		}
 		return err
 	}
@@ -120,14 +118,14 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 		if err := h.webRTCService.HandleSignal(connection.ID, signal); err != nil {
 			// Send error to client
 			if err := ws.WriteJSON(map[string]string{"error": err.Error()}); err != nil {
-				log.Printf("Failed to send error to client: %v", err)
-			}
+			zap.L().Error("Failed to send error to client", zap.Error(err))
+		}
 		}
 	}
 
 	// Clean up connection
 	if err := h.webRTCService.ClosePeerConnection(connection.ID); err != nil {
-		log.Printf("Failed to close WebRTC peer connection: %v", err)
+		zap.L().Error("Failed to close WebRTC peer connection", zap.Error(err))
 	}
 
 	return nil
@@ -143,7 +141,6 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 // @Failure 500 {object} map[string]string
 // @Router /ws/voice-conversation [get]
 func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) error {
-	log.Println("Voice conversation WebSocket connection requested")
 
 	// 获取查询参数
 	characterID := c.QueryParam("characterId")
