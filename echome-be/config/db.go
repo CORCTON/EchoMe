@@ -10,7 +10,7 @@ type DatabaseConfig struct {
 	DBName   string `mapstructure:"db_name"`
 }
 
-const postgresTcpDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Shanghai"
+const postgresTcpDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable"
 
 func (cfg *DatabaseConfig) GetDSN() string {
 	return fmt.Sprintf(
