@@ -29,6 +29,7 @@ export interface VoiceConversationState {
   reconnectTimer: NodeJS.Timeout | null;
   isInterrupted: boolean;
   echoGuardUntil: number | null;
+  onConnectCallbacks: (() => void)[];
   connect: (characterId: string) => void;
   start: (payload: ConversationRequest) => void;
   pushUserMessage: (content: string) => void;
@@ -72,6 +73,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
     reconnectTimer: null,
     isInterrupted: false,
     echoGuardUntil: null,
+    onConnectCallbacks: [],
 
     // 建立或重用 WebSocket 连接
     connect: (characterId: string) => {
@@ -90,6 +92,36 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
       newWs.onopen = () => {
         set({ connection: "connected", ws: newWs });
+
+        const { onConnectCallbacks, history, characterId, start } = get();
+
+        if (onConnectCallbacks.length > 0) {
+          console.log(`Executing ${onConnectCallbacks.length} queued actions.`);
+          for (const cb of onConnectCallbacks) {
+            cb();
+          }
+          set({ onConnectCallbacks: [] });
+          return;
+        }
+
+        const lastMessage = history[history.length - 1];
+
+        // 如果是重连，并且最后一条消息是用户发的，就自动重试
+        if (history.length > 0 && lastMessage?.role === "user" && characterId) {
+          console.log(
+            "Reconnected. The last message was from the user, automatically retrying.",
+          );
+          const { getCharacterById } = require("@/lib/characters");
+          const character = getCharacterById(characterId);
+          const messages = [
+            {
+              role: "system" as const,
+              content: character?.prompt || "You are a helpful assistant.",
+            },
+            ...history,
+          ];
+          start({ characterId, messages });
+        }
       };
 
       newWs.onmessage = async (ev) => {
@@ -219,12 +251,36 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
     // 向服务器发送对话请求（开启流式）
     start: (payload: ConversationRequest) => {
-      const { ws, connection } = get();
+      const { ws, connection, connect, characterId } = get();
+
+      const sendMessage = () => {
+        const { ws: currentWs } = get();
+        if (currentWs && get().connection === "connected") {
+          set({ isInterrupted: false });
+          currentWs.send(JSON.stringify({ ...payload, stream: true }));
+        } else {
+          console.error("Failed to send message even after connect callback.");
+        }
+      };
+
       if (ws && connection === "connected") {
-        set({ isInterrupted: false });
-        ws.send(JSON.stringify({ ...payload, stream: true }));
+        sendMessage();
       } else {
-        console.error("WebSocket not connected. Cannot start conversation.");
+        console.log(
+          "WebSocket not connected. Queuing message and attempting to connect.",
+        );
+        set((state) => ({
+          onConnectCallbacks: [...state.onConnectCallbacks, sendMessage],
+        }));
+
+        if (connection !== "connecting") {
+          const charId = characterId || payload.characterId;
+          if (charId) {
+            connect(charId);
+          } else {
+            console.error("Cannot connect: characterId is missing.");
+          }
+        }
       }
     },
 
@@ -249,12 +305,36 @@ export const useVoiceConversation = create<VoiceConversationState>(
         isPlaying: false,
         sources: [],
         idleTimer: null,
+        nextStartTime: undefined,
       });
     },
 
     interrupt: () => {
       get().stopPlaying();
-      set({ isInterrupted: true });
+      const { ws, reconnectTimer, connect, characterId } = get();
+
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+
+      if (ws && ws.readyState < 2) {
+        // Disable the onclose handler to prevent auto-reconnect for this intentional close
+        ws.onclose = null;
+        ws.close();
+      }
+
+      // Reset state and immediately start a new connection in the background
+      set({
+        isInterrupted: true,
+        ws: null,
+        connection: "idle",
+        reconnectTimer: null,
+      });
+
+      if (characterId) {
+        console.log("Interrupted. Pre-emptively creating a new connection.");
+        connect(characterId);
+      }
     },
 
     disconnect: () => {

@@ -298,6 +298,7 @@ export default function Page() {
             className="flex-1"
           />
           <Button onClick={handleSendMessage}>Send</Button>
+          <Button onClick={interrupt} variant="destructive">Interrupt</Button>
         </div>
       </div>
       {currentCharacter && (
