@@ -135,7 +135,7 @@ export default function Page() {
   }, [connection]);
 
   return (
-    <div className=" bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800  flex items-center justify-center min-h-screen w-full border-none">
+    <div className=" bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800  flex items-center justify-center w-full border-none">
       <div className="w-full h-[100dvh] flex flex-col justify-center items-center relative">
         {currentCharacter && (
           <div className="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
