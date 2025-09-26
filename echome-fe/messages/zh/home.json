@@ -1,8 +1,7 @@
 {
-  "title": "EchoMe",
-  "description": "与您的 AI 角色进行实时语音对话",
+  "title": "打个招呼？",
+  "description": "每个声音，都有自己的脾气。",
   "talk_to": "与 {characterName} 交谈",
-  "try_now": "立即体验",
   "say_something": "说点什么...",
   "vad_loading": "语音活动检测加载中...",
   "delete_message": "删除消息",
@@ -11,5 +10,19 @@
   "cancel": "取消",
   "delete": "删除",
   "edit_message": "修改消息",
-  "retry": "重试"
+  "retry": "重试",
+  "model_settings": "模型设置",
+  "file_upload": "文件上传",
+  "file_upload_description": "允许上传文件进行对话",
+  "internet_access": "联网功能",
+  "internet_access_description": "允许AI访问互联网获取最新信息",
+  "role_prompt": "角色提示词",
+  "role_prompt_description": "自定义AI角色的行为和回应风格",
+  "click_or_drag_to_upload": "点击或拖放以上传",
+  "remove": "移除",
+  "file_type_error": "仅允许图片文件和 PDF",
+  "ready_button": "准备好了！",
+  "edit_prompt": "编辑提示词",
+  "uploading": "上传中",
+  "upload_failed": "上传失败，请重试。"
 }

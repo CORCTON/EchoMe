@@ -1,8 +1,6 @@
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages } from "next-intl/server";
 
-export async function Providers({ children }: { children: React.ReactNode }) {
-  const messages = await getMessages();
+export async function Providers({ children,messages }: { children: React.ReactNode ,messages: Record<string, string> }) {
   return (
     <NextIntlClientProvider messages={messages}>
       {children}

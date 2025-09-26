@@ -18,6 +18,10 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
+      - OSS_REGION=${OSS_REGION}
+      - OSS_ACCESS_KEY_ID=${OSS_ACCESS_KEY_ID}
+      - OSS_ACCESS_KEY_SECRET=${OSS_ACCESS_KEY_SECRET}
+      - OSS_BUCKET=${OSS_BUCKET}
     depends_on:
       - echome-be
     networks:

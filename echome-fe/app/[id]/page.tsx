@@ -19,6 +19,9 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { Loader } from "@/components/ui/loader";
 import { Textarea } from "@/components/ui/textarea";
+import { ModelSettingsDrawer, ModelSettings } from "@/components/model-settings-drawer";
+import { Button } from "@/components/ui/button";
+import { Paperclip } from "lucide-react";
 
 export default function Page() {
   const params = useParams<{ id: string }>();
@@ -28,6 +31,7 @@ export default function Page() {
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
     null,
   );
+  const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { isVadReady, voiceActivity, transcript, initVad, resetTranscript } =
@@ -104,6 +108,25 @@ export default function Page() {
     }
   }, [voiceActivity, interrupt, isPlaying]);
 
+  const handleModelSettingsReady = (settings: ModelSettings) => {
+    const character = getCharacterById(characterId);
+    if (!character) return;
+
+    let systemPrompt = settings.rolePrompt || character.prompt;
+    if (settings.fileUrl) {
+      systemPrompt += `\n\n[User Uploaded File: ${settings.fileUrl}]`;
+    }
+
+    const messages = [
+      {
+        role: "system" as const,
+        content: systemPrompt,
+      },
+      ...history,
+    ];
+    start({ characterId, messages });
+  };
+
   const isUiReady = useMemo(() => {
     return isVadReady && isConversationStarted;
   }, [isVadReady, isConversationStarted]);
@@ -138,7 +161,7 @@ export default function Page() {
     <div className=" bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800  flex items-center justify-center w-full border-none">
       <div className="w-full h-[100dvh] flex flex-col justify-center items-center relative">
         {currentCharacter && (
-          <div className="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
+          <div className="absolute top-0 left-0 right-0 z-30 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-center py-3 px-4">
               <div className="flex items-center space-x-3">
                 <div className="flex items-center space-x-2">
@@ -161,7 +184,7 @@ export default function Page() {
         <div
           ref={scrollRef}
           className={cn(
-            "w-full flex-1 overflow-y-auto pb-40 no-scrollbar [mask-image:linear-gradient(to_bottom,black_calc(100%-10rem),transparent)] transition-all duration-300 ease-in-out pointer-events-auto relative z-20",
+            "w-full flex-1 overflow-y-auto pb-40 no-scrollbar [mask-image:linear-gradient(to_bottom,black_calc(100%-10rem),transparent)] transition-all duration-300 ease-in-out pointer-events-auto relative z-0",
             currentCharacter ? "pt-20" : "pt-4",
             { "opacity-60 blur-sm": !isUiReady },
           )}
@@ -170,8 +193,7 @@ export default function Page() {
             {history
               .filter((msg) => msg.role !== "system")
               .map((msg, index) => {
-                const isLastAssistantMessage =
-                  msg.role === "assistant" &&
+                const isLastAssistantMessage = msg.role === "assistant" &&
                   index ===
                     history.filter((m) => m.role !== "system").length - 1;
                 const originalMessageIndex = history.indexOf(msg);
@@ -181,15 +203,15 @@ export default function Page() {
                   setEditingMessageIndex(null);
 
                   setTimeout(() => {
-                    const { history: updatedHistory } =
-                      useVoiceConversation.getState();
+                    const { history: updatedHistory } = useVoiceConversation
+                      .getState();
                     if (characterId) {
                       const character = getCharacterById(characterId);
                       const messages = [
                         {
                           role: "system" as const,
-                          content:
-                            character?.prompt || "You are a helpful assistant.",
+                          content: character?.prompt ||
+                            "You are a helpful assistant.",
                         },
                         ...updatedHistory,
                       ];
@@ -219,35 +241,37 @@ export default function Page() {
                         msg.role === "user" ? "max-w-[70%]" : "flex-1 min-w-0",
                       )}
                     >
-                      {editingMessageIndex === originalMessageIndex ? (
-                        <Textarea
-                          className="min-w-[40vh]"
-                          defaultValue={msg.content}
-                          ref={(input) => input?.focus()}
-                          onBlur={(e) => handleSaveEdit(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              handleSaveEdit(e.currentTarget.value);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <MessageContent
-                          id={`msg-${originalMessageIndex}-${msg.role}`}
-                          markdown
-                          className={cn(
-                            {
-                              "bg-white": msg.role === "user",
-                            },
-                            {
-                              "bg-transparent p-0": msg.role === "assistant",
-                            },
-                          )}
-                        >
-                          {msg.content}
-                        </MessageContent>
-                      )}
+                      {editingMessageIndex === originalMessageIndex
+                        ? (
+                          <Textarea
+                            className="min-w-[40vh]"
+                            defaultValue={msg.content}
+                            ref={(input) => input?.focus()}
+                            onBlur={(e) => handleSaveEdit(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSaveEdit(e.currentTarget.value);
+                              }
+                            }}
+                          />
+                        )
+                        : (
+                          <MessageContent
+                            id={`msg-${originalMessageIndex}-${msg.role}`}
+                            markdown
+                            className={cn(
+                              {
+                                "bg-white": msg.role === "user",
+                              },
+                              {
+                                "bg-transparent p-0": msg.role === "assistant",
+                              },
+                            )}
+                          >
+                            {msg.content}
+                          </MessageContent>
+                        )}
                       <MessageActions
                         className={cn("self-end", {
                           "self-start": msg.role === "assistant",
@@ -258,8 +282,7 @@ export default function Page() {
                           messageRole={msg.role as "user" | "assistant"}
                           isLastAssistantMessage={isLastAssistantMessage}
                           onEdit={() =>
-                            setEditingMessageIndex(originalMessageIndex)
-                          }
+                            setEditingMessageIndex(originalMessageIndex)}
                         />
                       </MessageActions>
                     </div>
@@ -276,7 +299,7 @@ export default function Page() {
           </div>
         </div>
 
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none z-10">
           {!isVadReady && (
             <div className="absolute inset-0 flex justify-center items-center">
               <Loader />
@@ -287,10 +310,10 @@ export default function Page() {
             isConversationStarted &&
             animationActivity === VoiceActivity.Idle &&
             history.length === 0 && (
-              <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-                <p className="text-lg text-gray-600">{t("say_something")}</p>
-              </div>
-            )}
+            <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
+              <p className="text-lg text-gray-600">{t("say_something")}</p>
+            </div>
+          )}
 
           <div
             className={cn(
@@ -301,7 +324,25 @@ export default function Page() {
             <AudioAnimation activity={animationActivity} />
           </div>
         </div>
+        <div className="absolute bottom-8 left-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={() => setIsModelSettingsOpen(true)}
+          >
+            <Paperclip className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
+      {currentCharacter && (
+        <ModelSettingsDrawer
+          open={isModelSettingsOpen}
+          onOpenChange={setIsModelSettingsOpen}
+          character={currentCharacter}
+          onReady={handleModelSettingsReady}
+        />
+      )}
     </div>
   );
 }

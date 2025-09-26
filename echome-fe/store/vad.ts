@@ -2,35 +2,40 @@ import { create } from "zustand";
 import { VoiceActivity } from "@/types/vad";
 import { MicVAD } from "@ricky0123/vad-web";
 
+// 使用 zustand 管理 VAD（语音活动检测）和 ASR（语音识别）相关状态
+// 包括：VAD 实例管理、音频预缓冲、ASR websocket 连接与消息处理
+
 export enum ConnectionState {
   Connecting,
   Connected,
   Disconnected,
 }
 
+// 从 ASR 服务返回的结果格式
 interface AsrResult {
   type: "asr_result";
   text: string;
   sentence_end: boolean;
 }
 
+// VAD store 的状态接口（主要字段已命名为可读的含义）
 interface VadState {
-  isVadReady: boolean;
-  asrConnectionState: ConnectionState;
-  voiceActivity: VoiceActivity;
-  committedTranscript: string;
-  transcript: string;
-  isFinal: boolean;
-  isTranscribing: boolean;
-  socket: WebSocket | null;
-  vad: MicVAD | null;
-  preSpeechBuffer: Float32Array[];
-  audioQueue: Float32Array[];
-  initVad: (onSpeechEnd: (transcript: string) => void) => Promise<void>;
-  disconnect: () => void;
-  send: (data: Float32Array) => void;
-  setVoiceActivity: (activity: VoiceActivity) => void;
-  resetTranscript: () => void;
+  isVadReady: boolean; // VAD 是否初始化完成
+  asrConnectionState: ConnectionState; // ASR websocket 状态
+  voiceActivity: VoiceActivity; // 当前语音活动状态（Idle/Loading/Speaking）
+  committedTranscript: string; // 已确认（最终）的识别文本
+  transcript: string; // 当前正在拼接的识别文本
+  isFinal: boolean; // 当前片段是否为最终结果
+  isTranscribing: boolean; // 是否正在把帧发送给 ASR
+  socket: WebSocket | null; // ASR websocket
+  vad: MicVAD | null; // VAD 实例
+  preSpeechBuffer: Float32Array[]; // 语音开始前的预缓冲帧（用于补发）
+  audioQueue: Float32Array[]; // 在 websocket 建立期间排队的音频帧
+  initVad: (onSpeechEnd: (transcript: string) => void) => Promise<void>; // 初始化 VAD
+  disconnect: () => void; // 断开并清理资源
+  send: (data: Float32Array) => void; // 发送 PCM 音频到 ASR
+  setVoiceActivity: (activity: VoiceActivity) => void; // 更新语音活动状态
+  resetTranscript: () => void; // 重置转录文本
 }
 
 export const useVadStore = create<VadState>((set, get) => ({
@@ -42,6 +47,8 @@ export const useVadStore = create<VadState>((set, get) => ({
   preSpeechBuffer: [],
   audioQueue: [],
   committedTranscript: "",
+
+  // 初始化 VAD：创建 MicVAD，设置回调（开始/结束/帧处理）并启动
   initVad: async (onSpeechEndCallback) => {
     set({ voiceActivity: VoiceActivity.Loading, isVadReady: false });
     try {
@@ -52,16 +59,20 @@ export const useVadStore = create<VadState>((set, get) => ({
         preSpeechPadMs: 200,
         positiveSpeechThreshold: 0.9,
         minSpeechMs: 100,
+
+        // 语音开始：检查 echo guard，打断当前播放，合并并发送预缓冲数据
         onSpeechStart: () => {
           const { echoGuardUntil, interrupt } =
             require("@/store/voice-conversation").useVoiceConversation.getState();
           if (echoGuardUntil && Date.now() < echoGuardUntil) {
             return;
           }
+          // 中断当前播放并重置转录状态
           interrupt();
           get().resetTranscript();
           const { preSpeechBuffer, send } = get();
           if (preSpeechBuffer.length > 0) {
+            // 将预缓冲帧拼接成一个连续的 Float32Array 并发送
             const concatenated = new Float32Array(
               preSpeechBuffer.reduce((acc, val) => acc + val.length, 0),
             );
@@ -78,6 +89,8 @@ export const useVadStore = create<VadState>((set, get) => ({
             preSpeechBuffer: [],
           });
         },
+
+        // 语音结束：关闭 ASR 连接并回调最终文本
         onSpeechEnd: () => {
           set({
             voiceActivity: VoiceActivity.Loading,
@@ -96,12 +109,14 @@ export const useVadStore = create<VadState>((set, get) => ({
             onSpeechEndCallback(transcript);
           }
         },
+
+        // 每帧处理：如果正在转录则发送，否则将帧保存在预缓冲队列中
         onFrameProcessed: (_, frame) => {
           const { isTranscribing, preSpeechBuffer, send } = get();
           if (isTranscribing) {
             send(frame);
           } else {
-            const bufferSize = 7;
+            const bufferSize = 7; // 预缓冲最大帧数
             const newBuffer = [...preSpeechBuffer, frame];
             if (newBuffer.length > bufferSize) {
               newBuffer.shift();
@@ -117,9 +132,12 @@ export const useVadStore = create<VadState>((set, get) => ({
       set({ voiceActivity: VoiceActivity.Idle, isVadReady: false });
     }
   },
+
   transcript: "",
   isFinal: false,
   socket: null,
+
+  // 断开并清理 websocket 与 VAD 实例
   disconnect: () => {
     const { socket, vad } = get();
     if (socket) {
@@ -138,6 +156,8 @@ export const useVadStore = create<VadState>((set, get) => ({
       isTranscribing: false,
     });
   },
+
+  // 发送音频数据到 ASR：先把 Float32 转为 Int16，再通过 websocket 发送
   send: (data: Float32Array) => {
     const { socket } = get();
 
@@ -152,6 +172,7 @@ export const useVadStore = create<VadState>((set, get) => ({
       ws.send(buffer.buffer);
     };
 
+    // 如果没有可用 socket 或者正在关闭，则创建新的 websocket 并在 onopen 时发送当前帧与队列中的数据
     if (
       !socket ||
       socket.readyState === WebSocket.CLOSED ||
@@ -167,7 +188,7 @@ export const useVadStore = create<VadState>((set, get) => ({
           asrConnectionState: ConnectionState.Connected,
           socket: newSocket,
         });
-        sendData(newSocket, data); // Send the initial data (pre-speech buffer)
+        sendData(newSocket, data); // 发送初始化数据（预缓冲）
         const { audioQueue } = get();
         for (const queuedData of audioQueue) {
           sendData(newSocket, queuedData);
@@ -175,6 +196,7 @@ export const useVadStore = create<VadState>((set, get) => ({
         set({ audioQueue: [] });
       };
 
+      // 处理来自 ASR 的文本结果
       newSocket.onmessage = (event) => {
         if (typeof event.data !== "string") return;
         try {
@@ -218,14 +240,18 @@ export const useVadStore = create<VadState>((set, get) => ({
 
       set({ socket: newSocket });
     } else if (socket.readyState === WebSocket.CONNECTING) {
+      // socket 建立中：排队等待发送
       set((state) => ({ audioQueue: [...state.audioQueue, data] }));
     } else if (socket.readyState === WebSocket.OPEN) {
+      // 直接发送
       sendData(socket, data);
     }
   },
+
   setVoiceActivity: (activity: VoiceActivity) => {
     set({ voiceActivity: activity });
   },
+
   resetTranscript: () =>
     set({ transcript: "", committedTranscript: "", isFinal: false }),
 }));
