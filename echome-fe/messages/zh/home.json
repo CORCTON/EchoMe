@@ -2,7 +2,6 @@
   "title": "EchoMe",
   "description": "与您的 AI 角色进行实时语音对话",
   "talk_to": "与 {characterName} 交谈",
-  "try_now": "立即体验",
   "say_something": "说点什么...",
   "vad_loading": "语音活动检测加载中...",
   "delete_message": "删除消息",
