@@ -23,6 +23,7 @@ export interface VoiceConversationState {
   audioCtx: AudioContext | null;
   gainNode: GainNode | null;
   isPlaying: boolean;
+  isResponding: boolean;
   sources: AudioBufferSourceNode[];
   nextStartTime?: number;
   idleTimer: NodeJS.Timeout | null;
@@ -67,6 +68,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
     audioCtx: null,
     gainNode: null,
     isPlaying: false,
+    isResponding: false,
     sources: [],
     nextStartTime: undefined,
     idleTimer: null,
@@ -127,6 +129,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
       newWs.onmessage = async (ev) => {
         if (get().isInterrupted) return;
 
+        set({ isResponding: false });
         const { idleTimer } = get();
         if (idleTimer) clearTimeout(idleTimer);
 
@@ -147,7 +150,8 @@ export const useVoiceConversation = create<VoiceConversationState>(
                 } else {
                   history.push({ role: "assistant", content: message.content });
                 }
-                return { history };
+                const limitedHistory = history.slice(-30);
+                return { history: limitedHistory };
               });
             } else if (message.type === "text_response" && message.response) {
               set((s) => {
@@ -164,7 +168,8 @@ export const useVoiceConversation = create<VoiceConversationState>(
                     content: message.response,
                   });
                 }
-                return { history };
+                const limitedHistory = history.slice(-30);
+                return { history: limitedHistory };
               });
             } else if (message.type === "tts_error") {
               console.warn("TTS error ignored:", message.message);
@@ -188,8 +193,9 @@ export const useVoiceConversation = create<VoiceConversationState>(
           source.connect(gainNode);
 
           const now = audioCtx.currentTime;
-          const startAt =
-            nextStartTime && nextStartTime > now ? nextStartTime : now;
+          const startAt = nextStartTime && nextStartTime > now
+            ? nextStartTime
+            : now;
 
           if (!isPlaying) {
             set({ echoGuardUntil: Date.now() + 300 });
@@ -256,7 +262,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
       const sendMessage = () => {
         const { ws: currentWs } = get();
         if (currentWs && get().connection === "connected") {
-          set({ isInterrupted: false });
+          set({ isInterrupted: false, isResponding: true });
           currentWs.send(JSON.stringify({ ...payload, stream: true }));
         } else {
           console.error("Failed to send message even after connect callback.");
@@ -286,7 +292,11 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
     pushUserMessage: (content: string) => {
       if (!content) return;
-      set((s) => ({ history: [...s.history, { role: "user", content }] }));
+      set((s) => {
+        const newHistory = [...s.history, { role: "user" as const, content }];
+        const limitedHistory = newHistory.slice(-30);
+        return { history: limitedHistory };
+      });
     },
 
     stopPlaying: () => {

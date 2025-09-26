@@ -20,8 +20,6 @@ import { useTranslations } from "next-intl";
 import { Loader } from "@/components/ui/loader";
 import { Textarea } from "@/components/ui/textarea";
 import { ModelSettingsDrawer, type ModelSettings } from "@/components/model-settings-drawer";
-import { Button } from "@/components/ui/button";
-import { Paperclip } from "lucide-react";
 
 export default function Page() {
   const params = useParams<{ id: string }>();
@@ -53,6 +51,7 @@ export default function Page() {
     interrupt,
     connection,
     editMessage,
+    isResponding,
   } = useVoiceConversation();
 
   useEffect(() => {
@@ -164,6 +163,9 @@ export default function Page() {
   const t = useTranslations("home");
 
   const animationActivity = useMemo(() => {
+    if (isResponding) {
+      return VoiceActivity.Loading;
+    }
     if (!isVadReady || !isConversationStarted) {
       return VoiceActivity.Loading;
     }
@@ -174,7 +176,7 @@ export default function Page() {
       return VoiceActivity.Idle;
     }
     return voiceActivity;
-  }, [isVadReady, isConversationStarted, voiceActivity, isPlaying]);
+  }, [isVadReady, isConversationStarted, voiceActivity, isPlaying, isResponding]);
 
   const connectionStatusColor = useMemo(() => {
     switch (connection) {
