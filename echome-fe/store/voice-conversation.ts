@@ -42,6 +42,7 @@ export interface VoiceConversationState {
   retryLastAssistantMessage: () => void;
 }
 
+// 将 Int16 PCM 转为 AudioBuffer
 function int16ToAudioBuffer(
   ctx: AudioContext,
   int16: Int16Array,
@@ -72,6 +73,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
     isInterrupted: false,
     echoGuardUntil: null,
 
+    // 建立或重用 WebSocket 连接
     connect: (characterId: string) => {
       const { ws, reconnectTimer } = get();
       if (ws && ws.readyState < 2) return;
@@ -96,6 +98,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
         const { idleTimer } = get();
         if (idleTimer) clearTimeout(idleTimer);
 
+        // 文本消息处理（流式或完整文本）
         if (typeof ev.data === "string") {
           try {
             const message = JSON.parse(ev.data);
@@ -140,6 +143,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
           return;
         }
 
+        // 二进制 PCM 音频处理
         const arrayBuf = ev.data as ArrayBuffer;
         const int16 = new Int16Array(arrayBuf);
         const { audioCtx, gainNode, nextStartTime, isPlaying } = get();
@@ -201,6 +205,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
         set({ connection: "disconnected", ws: null });
         const { characterId: currentCharacterId } = get();
         if (currentCharacterId) {
+          // 断线后尝试重连
           console.log(
             "WebSocket connection lost, attempting to reconnect in 2s...",
           );
@@ -212,6 +217,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
       };
     },
 
+    // 向服务器发送对话请求（开启流式）
     start: (payload: ConversationRequest) => {
       const { ws, connection } = get();
       if (ws && connection === "connected") {
@@ -235,7 +241,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
         try {
           source.stop();
         } catch {
-          // Ignore errors if source has already stopped
+          // 忽略已停止的错误
         }
       });
 
@@ -280,6 +286,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
     clear: () => set({ history: [] }),
 
+    // 恢复或创建 AudioContext
     resumeAudio: () => {
       let { audioCtx } = get();
       if (!audioCtx) {
