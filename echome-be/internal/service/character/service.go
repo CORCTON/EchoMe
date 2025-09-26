@@ -55,7 +55,7 @@ func (s *CharacterService) CreateCharacter(ctx context.Context, audio *string, c
 		if err != nil {
 			return nil, err
 		}
-		character.Voice = lo.FromPtr(voiceProfile)
+		character.Voice = voiceProfile
 	}
 	err := s.characterRepo.Save(ctx, character)
 	if err != nil {
@@ -81,9 +81,9 @@ func (s *CharacterService) CheckAndUpdatePendingCharacters(ctx context.Context) 
 
 	// 遍历角色，检查音色状态
 	for _, character := range pendingCharacters {
-		if character.Flag && character.Voice != "" {
+		if character.Flag && character.Voice != nil {
 			// 查询音色状态
-			status, err := s.aiService.GetVoiceStatus(ctx, character.Voice)
+			status, err := s.aiService.GetVoiceStatus(ctx, *character.Voice)
 			if err != nil {
 				// 如果查询失败，继续处理下一个角色
 				continue
@@ -92,7 +92,7 @@ func (s *CharacterService) CheckAndUpdatePendingCharacters(ctx context.Context) 
 			// 更新角色状态
 			if status {
 				// 音色审核通过
-				err = s.UpdateCharacterStatus(ctx, character, domain.CharacterStatusApproved)
+				_ = s.UpdateCharacterStatus(ctx, character, domain.CharacterStatusApproved)
 			}
 		}
 	}
