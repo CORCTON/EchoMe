@@ -5,13 +5,12 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Router manages all HTTP route registrations
 type Router struct {
 	characterHandlers *CharacterHandlers
 	webSocketHandlers *WebSocketHandlers
 }
 
-// NewRouter creates a new router with all required handlers
+// NewRouter 创建路由
 func NewRouter(
 	characterService domain.CharacterService,
 	webRTCService domain.WebRTCService,
@@ -24,11 +23,11 @@ func NewRouter(
 	}
 }
 
-// RegisterAllRoutes registers all API routes
+// RegisterAllRoutes 注册所有路由
 func (r *Router) RegisterAllRoutes(e *echo.Echo) {
-	// Register character routes
+	// 注册角色路由
 	r.characterHandlers.RegisterRoutes(e)
 
-	// Register WebSocket routes
+	// 注册 WebSocket 路由
 	r.webSocketHandlers.RegisterRoutes(e)
 }

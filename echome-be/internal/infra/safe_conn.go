@@ -43,7 +43,6 @@ func NewSafeConn(conn *websocket.Conn) *SafeConn {
 	// 1. 设置初始的读超时
 	if err := sc.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
 		log.Printf("NewSafeConn: Failed to set initial read deadline: %v", err)
-		// 也许应该立即关闭并返回一个错误的conn
 	}
 
 	// 2. 设置 Pong 处理器来延长读超时

@@ -7,13 +7,13 @@ import (
 	"github.com/justin/echome-be/internal/domain"
 )
 
-// CharacterService implements domain.CharacterService
+// CharacterService 角色服务
 type CharacterService struct {
 	characterRepo domain.CharacterRepository
 	aiService    domain.AIService
 }
 
-// NewCharacterService creates a new character service
+// NewCharacterService 创建角色服务
 func NewCharacterService(repo domain.CharacterRepository, aiService domain.AIService) *CharacterService {
 	return &CharacterService{
 		characterRepo: repo,

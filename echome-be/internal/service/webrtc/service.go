@@ -9,7 +9,7 @@ import (
 	"github.com/justin/echome-be/internal/domain"
 )
 
-// WebRTCService 实现domain.WebRTCService接口
+// WebRTCService WebRTC服务
 type webRTCService struct {
 	connections        map[string]*domain.PeerConnection
 	sessionConnections map[uuid.UUID]map[string]*domain.PeerConnection

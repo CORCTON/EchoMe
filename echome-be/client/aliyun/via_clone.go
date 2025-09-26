@@ -202,6 +202,5 @@ func (client *AliClient) TextToSpeechWithClone(ctx context.Context, text string,
 	config := DefaultVoiceCloneTTSConfig()
 	// 使用voice_id作为音色标识符
 	config.Voice = c.VoiceConfig.Voice
-
-	return client.TextToSpeech(ctx, text, writer, config)
+	return client.HandleTTS(ctx, writer, text,config)
 }
