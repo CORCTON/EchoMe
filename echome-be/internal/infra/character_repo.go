@@ -1,6 +1,7 @@
 package infra
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,19 +26,19 @@ type CharacterModel struct {
 
 // CharacterRepository 角色仓库
 type CharacterRepository struct {
-	db *gorm.DB
+	db *DB[*gorm.DB]
 }
 
 var _ domain.CharacterRepository = (*CharacterRepository)(nil)
 
-func NewCharacterRepository(db *gorm.DB) *CharacterRepository {
+func NewCharacterRepository(db *DB[*gorm.DB]) *CharacterRepository {
 	return &CharacterRepository{db: db}
 }
 
 // GetByID 根据ID获取角色
-func (r *CharacterRepository) GetByID(id uuid.UUID) (*domain.Character, error) {
+func (r *CharacterRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Character, error) {
 	var model CharacterModel
-	result := r.db.Where("id = ?", id).First(&model)
+	result := r.db.Get(ctx).Where("id = ?", id).First(&model)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, errors.New("character not found")
@@ -67,9 +68,9 @@ func (r *CharacterRepository) GetByID(id uuid.UUID) (*domain.Character, error) {
 }
 
 // GetAll 获取所有角色
-func (r *CharacterRepository) GetAll() ([]*domain.Character, error) {
+func (r *CharacterRepository) GetAll(ctx context.Context) ([]*domain.Character, error) {
 	var models []CharacterModel
-	result := r.db.Find(&models)
+	result := r.db.Get(ctx).Find(&models)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -101,7 +102,7 @@ func (r *CharacterRepository) GetAll() ([]*domain.Character, error) {
 }
 
 // Save 保存角色
-func (r *CharacterRepository) Save(character *domain.Character) error {
+func (r *CharacterRepository) Save(ctx context.Context, character *domain.Character) error {
 	// 检查角色ID是否为空，如果为空则生成一个新的
 	if character.ID == uuid.Nil {
 		character.ID = uuid.New()
@@ -126,6 +127,6 @@ func (r *CharacterRepository) Save(character *domain.Character) error {
 	}
 
 	// 保存到数据库
-	result := r.db.Save(&model)
+	result := r.db.Get(ctx).Save(&model)
 	return result.Error
 }

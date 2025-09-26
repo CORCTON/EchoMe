@@ -22,13 +22,13 @@ func NewCharacterService(repo domain.CharacterRepository, aiService domain.AISer
 }
 
 // GetCharacterByID 获取角色信息
-func (s *CharacterService) GetCharacterByID(id uuid.UUID) (*domain.Character, error) {
-	return s.characterRepo.GetByID(id)
+func (s *CharacterService) GetCharacterByID(ctx context.Context, id uuid.UUID) (*domain.Character, error) {
+	return s.characterRepo.GetByID(ctx, id)
 }
 
 // GetAllCharacters 获取所有角色
-func (s *CharacterService) GetAllCharacters() ([]*domain.Character, error) {
-	return s.characterRepo.GetAll()
+func (s *CharacterService) GetAllCharacters(ctx context.Context) ([]*domain.Character, error) {
+	return s.characterRepo.GetAll(ctx)
 }
 
 // CreateCharacter 实现语音克隆并创建角色
@@ -51,7 +51,7 @@ func (s *CharacterService) CreateCharacter(ctx context.Context, config *domain.V
 	}
 	
 	// 4. 保存角色
-	if err := s.characterRepo.Save(characterInfo); err != nil {
+	if err := s.characterRepo.Save(ctx, characterInfo); err != nil {
 		return nil, err
 	}
 	

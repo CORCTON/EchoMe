@@ -1,13 +1,14 @@
 package config
 
 type Aliyun struct {
-		APIKey   string           `mapstructure:"api_key"`
-		Endpoint string           `mapstructure:"endpoint"`
-		Region   string           `mapstructure:"region"`
-		ASR      ASRServiceConfig `mapstructure:"asr"`
-		TTS      TTSServiceConfig `mapstructure:"tts"`
-		LLM      LLMServiceConfig `mapstructure:"llm"`
+	APIKey   string           `mapstructure:"api_key"`
+	Endpoint string           `mapstructure:"endpoint"`
+	Region   string           `mapstructure:"region"`
+	ASR      ASRServiceConfig `mapstructure:"asr"`
+	TTS      TTSServiceConfig `mapstructure:"tts"`
+	LLM      LLMServiceConfig `mapstructure:"llm"`
 }
+
 // ASRServiceConfig defines ASR service configuration
 type ASRServiceConfig struct {
 	Model         string   `mapstructure:"model"`
@@ -30,11 +31,12 @@ type LLMServiceConfig struct {
 	Temperature float32 `mapstructure:"temperature"`
 	MaxTokens   int     `mapstructure:"max_tokens"`
 }
+
 // 阿里云相关的常量和默认值
 const (
 	// DefaultALBLEndpoint 阿里云百炼服务的默认端点
 	DefaultALBLEndpoint = "https://dashscope.aliyuncs.com"
-	
+
 	// ALBLServiceType 阿里云百炼服务类型
 	ALBLServiceType = "alibailian"
 )

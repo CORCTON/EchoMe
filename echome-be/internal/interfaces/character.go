@@ -33,7 +33,7 @@ func (h *CharacterHandlers) RegisterRoutes(e *echo.Echo) {
 // @Success 200 {array} domain.Character
 // @Router /characters [get]
 func (h *CharacterHandlers) GetCharacters(c echo.Context) error {
-	characters, err := h.characterService.GetAllCharacters()
+	characters, err := h.characterService.GetAllCharacters(c.Request().Context())
 	if err != nil {
 		return response.InternalError(c, "Failed to get characters", err.Error())
 	}
@@ -57,7 +57,7 @@ func (h *CharacterHandlers) GetCharacterByID(c echo.Context) error {
 		return response.BadRequest(c, "Invalid character ID", err.Error())
 	}
 
-	character, err := h.characterService.GetCharacterByID(id)
+	character, err := h.characterService.GetCharacterByID(c.Request().Context(), id)
 	if err != nil {
 		return response.NotFound(c, "Character not found", err.Error())
 	}

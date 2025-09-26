@@ -35,14 +35,14 @@ type VoiceProfile struct {
 
 
 type CharacterRepository interface {
-	GetByID(id uuid.UUID) (*Character, error)
-	GetAll() ([]*Character, error)
-	Save(character *Character) error
+	GetByID(ctx context.Context, id uuid.UUID) (*Character, error)
+	GetAll(ctx context.Context) ([]*Character, error)
+	Save(ctx context.Context, character *Character) error
 }
 type CharacterService interface {
 	// GetCharacterByID 根据角色ID获取角色配置
-	GetCharacterByID(id uuid.UUID) (*Character, error)
-	GetAllCharacters() ([]*Character, error)
+	GetCharacterByID(ctx context.Context, id uuid.UUID) (*Character, error)
+	GetAllCharacters(ctx context.Context) ([]*Character, error)
 	// VoiceCloneAndCreateCharacter 执行语音克隆并创建带有克隆声音的角色
 	// @param ctx 上下文
 	// @param config 语音克隆配置
