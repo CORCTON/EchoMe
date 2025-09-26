@@ -3,10 +3,11 @@ package conversation
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -25,7 +26,6 @@ const (
 type ConversationService struct {
 	aiService        domain.AIService
 	characterService domain.CharacterService
-	logger           *log.Logger
 }
 
 // NewConversationService 创建会话服务
@@ -36,7 +36,6 @@ func NewConversationService(
 	return &ConversationService{
 		aiService:        aiService,
 		characterService: characterService,
-		logger:           log.Default(),
 	}
 }
 
@@ -50,7 +49,7 @@ func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *d
 	if req.CharacterID != uuid.Nil {
 		character, err = s.characterService.GetCharacterByID(ctx,req.CharacterID)
 		if err != nil {
-			s.logger.Printf("获取角色失败: %v", err)
+			zap.L().Warn("获取角色失败", zap.Error(err))
 			character = nil
 		}
 	}
@@ -61,22 +60,21 @@ func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *d
 func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Context, sc domain.WebSocketConn, character *domain.Character) error {
 	conversationCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
 	for {
 		messageType, message, err := sc.ReadMessage()
 		if err != nil {
-			s.logger.Printf("读取 WebSocket 消息失败: %v", err)
+			zap.L().Warn("读取WebSocket消息失败", zap.Error(err))
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				s.logger.Println("读取超时: 客户端无响应，关闭连接")
+				zap.L().Info("读取超时，客户端无响应，关闭连接")
 				return nil
 			}
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				s.logger.Printf("客户端意外关闭连接: %v", err)
+				zap.L().Warn("客户端意外关闭连接", zap.Error(err))
 			}
 			return nil
 		}
 		if messageType != websocket.TextMessage {
-			s.logger.Printf("预期文本消息，收到类型: %d", messageType)
+			zap.L().Warn("预期文本消息，收到类型不匹配", zap.Int("message_type", messageType))
 			continue
 		}
 
@@ -101,21 +99,21 @@ func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Cont
 						"content": msg.Content,
 					})
 				}
-				s.logger.Printf("使用提供的对话历史，消息数: %d", len(conversationHistory))
+				zap.L().Debug("使用提供的对话历史", zap.Int("message_count", len(conversationHistory)))
+			} else {
+				zap.L().Warn("解析JSON消息失败", zap.Error(err))
+				continue
 			}
-		} else {
-			s.logger.Printf("解析 JSON 消息失败: %v", err)
-			continue
 		}
 
 		characterContext := ""
-		if character != nil {
-			characterContext = character.Description
+		if character != nil && character.Prompt != "" {
+			characterContext = character.Prompt
 		}
 
 		if structuredMessage.Stream {
 			if err := s.handleStreamingConversation(conversationCtx, sc, userInput, character, conversationHistory); err != nil {
-				s.logger.Printf("流式对话处理失败: %v", err)
+				zap.L().Error("流式对话处理失败", zap.Error(err))
 				_ = sc.WriteJSON(map[string]any{
 					"type":    "error",
 					"message": "流式响应处理失败",
@@ -125,7 +123,7 @@ func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Cont
 		} else {
 			response, err := s.aiService.GenerateResponse(conversationCtx, userInput, characterContext, conversationHistory)
 			if err != nil {
-				s.logger.Printf("生成 AI 响应失败: %v", err)
+				zap.L().Error("生成AI响应失败", zap.Error(err))
 				return WrapError(ErrCodeAIGenerationFailed, "生成AI响应失败", err)
 			}
 
@@ -150,20 +148,16 @@ func (s *ConversationService) handleStreamingConversation(
 
 	var fullResponse strings.Builder
 
-	characterContext := ""
-	var voiceProfile *domain.VoiceProfile
-	if character != nil {
-		characterContext = character.Description
-		voiceProfile = character.VoiceConfig
-	}
-
 	// Channel for LLM text chunks
 	llmTextChan := make(chan string, 100) // Buffered channel
 
-	// Configure TTS
-	ttsConfig := aliyun.DefaultTTSConfig()
-	if voiceProfile != nil {
-		ttsConfig.Voice = voiceProfile.Voice
+	// 根据角色是否开启复刻决定是否使用复刻音色
+	var ttsConfig domain.TTSConfig
+	if character != nil && character.Flag && character.Voice!=""{
+		ttsConfig = aliyun.DefaultVoiceCloneTTSConfig()
+		ttsConfig.Voice = character.Voice
+	} else {
+		ttsConfig = aliyun.DefaultTTSConfig()
 	}
 
 	g, conversationCtx := errgroup.WithContext(ctx)
@@ -200,14 +194,14 @@ func (s *ConversationService) handleStreamingConversation(
 			return nil
 		}
 
-		return s.aiService.GenerateStreamResponse(conversationCtx, userInput, characterContext, conversationHistory, onChunk)
+		return s.aiService.GenerateStreamResponse(conversationCtx, userInput, 	character.Prompt, conversationHistory, onChunk)
 	})
 
 	// Wait for both goroutines to finish
 	if err := g.Wait(); err != nil {
 		// Don't return error on context cancellation, as it's an expected way to stop.
 		if err != context.Canceled {
-			s.logger.Printf("流式对话处理失败: %v", err)
+			zap.L().Error("流式对话处理失败", zap.Error(err))
 			_ = sc.WriteJSON(map[string]any{
 				"type":    "error",
 				"message": "流式响应处理失败: " + err.Error(),

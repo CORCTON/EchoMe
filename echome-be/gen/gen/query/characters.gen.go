@@ -30,12 +30,15 @@ func newCharacter(db *gorm.DB, opts ...gen.DOOption) character {
 	_character.ALL = field.NewAsterisk(tableName)
 	_character.ID = field.NewString(tableName, "id")
 	_character.Name = field.NewString(tableName, "name")
-	_character.Description = field.NewString(tableName, "description")
-	_character.Persona = field.NewString(tableName, "persona")
-	_character.AvatarURL = field.NewString(tableName, "avatar_url")
-	_character.VoiceConfig = field.NewString(tableName, "voice_config")
+	_character.Prompt = field.NewString(tableName, "prompt")
+	_character.Avatar = field.NewString(tableName, "avatar")
+	_character.AudioExample = field.NewString(tableName, "audio_example")
 	_character.CreatedAt = field.NewTime(tableName, "created_at")
 	_character.UpdatedAt = field.NewTime(tableName, "updated_at")
+	_character.Voice = field.NewString(tableName, "voice")
+	_character.Description = field.NewString(tableName, "description")
+	_character.Flag = field.NewBool(tableName, "flag")
+	_character.Status = field.NewInt32(tableName, "status")
 
 	_character.fillFieldMap()
 
@@ -45,15 +48,18 @@ func newCharacter(db *gorm.DB, opts ...gen.DOOption) character {
 type character struct {
 	characterDo characterDo
 
-	ALL         field.Asterisk
-	ID          field.String
-	Name        field.String
-	Description field.String
-	Persona     field.String
-	AvatarURL   field.String
-	VoiceConfig field.String
-	CreatedAt   field.Time
-	UpdatedAt   field.Time
+	ALL          field.Asterisk
+	ID           field.String // 角色ID
+	Name         field.String // 角色名
+	Prompt       field.String // 角色提示词
+	Avatar       field.String // 角色头像地址
+	AudioExample field.String // 示例音频
+	CreatedAt    field.Time   // 创建时间
+	UpdatedAt    field.Time   // 更新时间
+	Voice        field.String // 自定义音色
+	Description  field.String // 角色描述
+	Flag         field.Bool   // 是否克隆
+	Status       field.Int32  // 1.审核中2.可用3.禁用
 
 	fieldMap map[string]field.Expr
 }
@@ -72,12 +78,15 @@ func (c *character) updateTableName(table string) *character {
 	c.ALL = field.NewAsterisk(table)
 	c.ID = field.NewString(table, "id")
 	c.Name = field.NewString(table, "name")
-	c.Description = field.NewString(table, "description")
-	c.Persona = field.NewString(table, "persona")
-	c.AvatarURL = field.NewString(table, "avatar_url")
-	c.VoiceConfig = field.NewString(table, "voice_config")
+	c.Prompt = field.NewString(table, "prompt")
+	c.Avatar = field.NewString(table, "avatar")
+	c.AudioExample = field.NewString(table, "audio_example")
 	c.CreatedAt = field.NewTime(table, "created_at")
 	c.UpdatedAt = field.NewTime(table, "updated_at")
+	c.Voice = field.NewString(table, "voice")
+	c.Description = field.NewString(table, "description")
+	c.Flag = field.NewBool(table, "flag")
+	c.Status = field.NewInt32(table, "status")
 
 	c.fillFieldMap()
 
@@ -104,15 +113,18 @@ func (c *character) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (c *character) fillFieldMap() {
-	c.fieldMap = make(map[string]field.Expr, 8)
+	c.fieldMap = make(map[string]field.Expr, 11)
 	c.fieldMap["id"] = c.ID
 	c.fieldMap["name"] = c.Name
-	c.fieldMap["description"] = c.Description
-	c.fieldMap["persona"] = c.Persona
-	c.fieldMap["avatar_url"] = c.AvatarURL
-	c.fieldMap["voice_config"] = c.VoiceConfig
+	c.fieldMap["prompt"] = c.Prompt
+	c.fieldMap["avatar"] = c.Avatar
+	c.fieldMap["audio_example"] = c.AudioExample
 	c.fieldMap["created_at"] = c.CreatedAt
 	c.fieldMap["updated_at"] = c.UpdatedAt
+	c.fieldMap["voice"] = c.Voice
+	c.fieldMap["description"] = c.Description
+	c.fieldMap["flag"] = c.Flag
+	c.fieldMap["status"] = c.Status
 }
 
 func (c character) clone(db *gorm.DB) character {

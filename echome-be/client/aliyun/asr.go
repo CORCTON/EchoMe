@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
@@ -94,7 +96,7 @@ func connectToModelStudioASR(apiKey string, config domain.ASRConfig) (*websocket
 		return nil, "", fmt.Errorf("连接WebSocket ASR失败: %v", err)
 	}
 
-	fmt.Println("WebSocket ASR连接成功")
+	zap.L().Info("WebSocket ASR连接成功")
 
 	// 生成UUID格式的任务ID
 	taskID := uuid.New().String()
@@ -123,7 +125,7 @@ func connectToModelStudioASR(apiKey string, config domain.ASRConfig) (*websocket
 
 	// 设置写入超时
 	if err := ws.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		fmt.Printf("设置写入超时失败: %v\n", err)
+		zap.L().Warn("设置写入超时失败", zap.Error(err))
 	}
 
 	if err := ws.WriteJSON(initMsg); err != nil {
@@ -132,7 +134,7 @@ func connectToModelStudioASR(apiKey string, config domain.ASRConfig) (*websocket
 
 	// 设置读取超时
 	if err := ws.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		fmt.Printf("设置读取超时失败: %v\n", err)
+		zap.L().Warn("设置读取超时失败", zap.Error(err))
 	}
 
 	// 等待初始化响应
@@ -141,14 +143,14 @@ func connectToModelStudioASR(apiKey string, config domain.ASRConfig) (*websocket
 		return nil, "", fmt.Errorf("读取初始化响应失败: %w", err)
 	}
 
-	fmt.Printf("ASR初始化响应: %s\n", string(initResp))
+	zap.L().Debug("ASR初始化响应", zap.String("response", string(initResp)))
 
 	// 检查初始化是否成功
 	var initResponse map[string]any
 	if err := json.Unmarshal(initResp, &initResponse); err == nil {
 		if header, ok := initResponse["header"].(map[string]any); ok {
 			if event, ok := header["event"].(string); ok && event == "task-started" {
-				fmt.Println("ASR任务初始化成功")
+				zap.L().Info("ASR任务初始化成功")
 				// 保存task_id在websocket的上下文，以便后续使用
 				ws.SetPongHandler(func(string) error { return nil })
 			} else if event == "task-failed" {
@@ -171,7 +173,7 @@ func connectToModelStudioASR(apiKey string, config domain.ASRConfig) (*websocket
 // forwardAudioToModelStudio 转发音频数据到阿里云WebSocket ASR
 func forwardAudioToModelStudio(ctx context.Context, clientWS domain.WebSocketConn, asrWS *websocket.Conn, taskID string) error {
 	defer func() {
-		fmt.Println("音频发送结束，发送finish-task指令")
+		zap.L().Info("音频发送结束，发送finish-task指令")
 		// 发送结束信号 - 根据文档格式，使用相同的taskID
 		endMsg := map[string]any{
 			"header": map[string]any{
@@ -186,23 +188,23 @@ func forwardAudioToModelStudio(ctx context.Context, clientWS domain.WebSocketCon
 
 		// 设置写入超时
 		if err := asrWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-			fmt.Printf("设置写入超时失败: %v\n", err)
+			zap.L().Warn("设置写入超时失败", zap.Error(err))
 		}
 
 		if err := asrWS.WriteJSON(endMsg); err != nil {
-			fmt.Printf("发送finish-task指令失败: %v\n", err)
+			zap.L().Warn("发送finish-task指令失败", zap.Error(err))
 		}
 	}()
 
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("上下文已取消，停止音频转发")
+			zap.L().Info("上下文已取消，停止音频转发")
 			return ctx.Err()
 		default:
 			messageType, data, err := clientWS.ReadMessage()
 			if err != nil {
-				fmt.Printf("从客户端读取消息失败: %v\n", err)
+				zap.L().Warn("从客户端读取消息失败", zap.Error(err))
 				return nil
 			}
 
@@ -210,7 +212,7 @@ func forwardAudioToModelStudio(ctx context.Context, clientWS domain.WebSocketCon
 			case websocket.BinaryMessage:
 				// 设置写入超时
 				if err := asrWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-					fmt.Printf("设置写入超时失败: %v\n", err)
+					zap.L().Warn("设置写入超时失败", zap.Error(err))
 				}
 
 				if err := asrWS.WriteMessage(websocket.BinaryMessage, data); err != nil {
@@ -220,11 +222,11 @@ func forwardAudioToModelStudio(ctx context.Context, clientWS domain.WebSocketCon
 				var msg map[string]any
 				if err := json.Unmarshal(data, &msg); err == nil {
 					if msgType, ok := msg["type"].(string); ok && msgType == "finish" {
-						fmt.Println("收到客户端结束信号")
+						zap.L().Info("收到客户端结束信号")
 						return nil
 					}
 				} else {
-					fmt.Printf("无法解析文本消息: %v, 消息内容: %s\n", err, string(data))
+					zap.L().Warn("无法解析文本消息", zap.Error(err), zap.String("message", string(data)))
 				}
 			}
 		}
@@ -238,21 +240,21 @@ func handleModelStudioASRResults(ctx context.Context, asrWS *websocket.Conn, cli
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("上下文已取消，停止处理ASR结果")
+			zap.L().Info("上下文已取消，停止处理ASR结果")
 			return ctx.Err()
 		default:
 			// 设置读取超时
 			if err := asrWS.SetReadDeadline(time.Now().Add(15 * time.Second)); err != nil {
-				fmt.Printf("设置读取超时失败: %v\n", err)
+				zap.L().Warn("设置读取超时失败", zap.Error(err))
 			}
 
 			msgType, msg, err := asrWS.ReadMessage()
 			if err != nil {
 				// 根据WebSocket错误类型进行处理
 				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					fmt.Printf("ASR连接正常关闭: %v\n", err)
+					zap.L().Info("ASR连接正常关闭", zap.Error(err))
 				} else {
-					fmt.Printf("ASR连接异常断开: %v\n", err)
+					zap.L().Error("ASR连接异常断开", zap.Error(err))
 				}
 				return nil
 			}
@@ -264,7 +266,7 @@ func handleModelStudioASRResults(ctx context.Context, asrWS *websocket.Conn, cli
 
 			var response map[string]any
 			if err := json.Unmarshal(msg, &response); err != nil {
-				fmt.Printf("解析ASR响应失败: %v, 原始消息: %s\n", err, string(msg))
+				zap.L().Warn("解析ASR响应失败", zap.Error(err), zap.String("raw_message", string(msg)))
 				continue
 			}
 
@@ -295,23 +297,23 @@ func handleModelStudioASRResults(ctx context.Context, asrWS *websocket.Conn, cli
 										}
 
 										// 设置写入超时
-										if err := clientWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-											fmt.Printf("设置客户端写入超时失败: %v\n", err)
-										}
+						if err := clientWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+							zap.L().Warn("设置客户端写入超时失败", zap.Error(err))
+						}
 
 										// 发送到客户端
-										if err := clientWS.WriteJSON(clientResponse); err != nil {
-											fmt.Printf("向客户端发送ASR结果失败: %v\n", err)
-										}
+							if err := clientWS.WriteJSON(clientResponse); err != nil {
+								zap.L().Warn("向客户端发送ASR结果失败", zap.Error(err))
+							}
 									}
 								}
 							}
 						}
 					case "task-finished":
-						fmt.Println("ASR任务完成")
-						if !resultReceived {
-							fmt.Println("警告: 任务完成但未收到任何识别结果")
-						}
+						zap.L().Info("ASR任务完成")
+							if !resultReceived {
+								zap.L().Warn("任务完成但未收到任何识别结果")
+							}
 						// 发送任务完成通知给客户端
 						_ = clientWS.WriteJSON(map[string]any{
 							"type": "asr_finished",
@@ -327,7 +329,7 @@ func handleModelStudioASRResults(ctx context.Context, asrWS *websocket.Conn, cli
 						if msg, ok := header["error_message"].(string); ok {
 							errorMessage = msg
 						}
-						fmt.Printf("ASR任务失败详情: 代码=%s, 消息=%s\n", errorCode, errorMessage)
+						zap.L().Error("ASR任务失败", zap.String("error_code", errorCode), zap.String("error_message", errorMessage))
 						// 发送错误信息给客户端
 						_ = clientWS.WriteJSON(map[string]any{
 							"type":          "asr_error",

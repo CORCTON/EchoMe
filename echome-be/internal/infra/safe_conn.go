@@ -2,9 +2,10 @@ package infra
 
 import (
 	"errors"
-	"log"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
@@ -42,12 +43,12 @@ func NewSafeConn(conn *websocket.Conn) *SafeConn {
 	// --- 启动心跳机制 ---
 	// 1. 设置初始的读超时
 	if err := sc.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
-		log.Printf("NewSafeConn: Failed to set initial read deadline: %v", err)
+		zap.L().Warn("Failed to set initial read deadline", zap.Error(err))
 	}
 
 	// 2. 设置 Pong 处理器来延长读超时
 	sc.SetPongHandler(func(string) error {
-		log.Println("Pong received, extending read deadline.")
+		// 移除频繁的心跳日志，仅保留错误情况
 		return sc.SetReadDeadline(time.Now().Add(pongWait))
 	})
 
@@ -68,7 +69,7 @@ func (sc *SafeConn) writeLoop() {
 	}()
 	for fn := range sc.writeCh {
 		if err := fn(); err != nil {
-			log.Printf("SafeConn write error: %v", err)
+			zap.L().Error("SafeConn write error", zap.Error(err))
 			sc.closeErr = err
 			// 发生写入错误时，不再接收新的写入任务，并等待循环自然结束
 			return
@@ -94,13 +95,11 @@ func (sc *SafeConn) pingLoop() {
 			case sc.writeCh <- pingFunc:
 				// Ping 已入队
 			case <-sc.closed:
-				// 连接已关闭，停止发送 Ping
-				log.Println("Connection closed, stopping ping loop.")
+				// 连接已关闭，停止发送 Ping，移除连接关闭的重复日志
 				return
 			}
 		case <-sc.closed:
-			// 连接已关闭，停止发送 Ping
-			log.Println("Connection closed, stopping ping loop.")
+			// 连接已关闭，停止发送 Ping，移除连接关闭的重复日志
 			return
 		}
 	}

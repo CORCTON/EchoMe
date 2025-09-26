@@ -13,8 +13,6 @@ import (
 	"moul.io/zapgorm2"
 )
 
-const postgresTcpDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Shanghai"
-
 var key keyType = struct{}{}
 
 type keyType struct{}
@@ -78,7 +76,6 @@ func NewDB(cfg *config.DatabaseConfig) (*DB[*gorm.DB], error) {
 }
 
 // GetQuery 返回全局的query.Query实例
-// 这个函数可以在整个应用中使用，获取已初始化的查询对象
 func GetQuery() *query.Query {
 	return query.Q
 }

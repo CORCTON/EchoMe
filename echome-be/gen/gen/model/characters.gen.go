@@ -12,14 +12,17 @@ const TableNameCharacter = "characters"
 
 // Character mapped from table <characters>
 type Character struct {
-	ID          string     `gorm:"column:id;type:text;primaryKey" json:"id"`
-	Name        *string    `gorm:"column:name;type:text" json:"name"`
-	Description *string    `gorm:"column:description;type:text" json:"description"`
-	Persona     *string    `gorm:"column:persona;type:text" json:"persona"`
-	AvatarURL   *string    `gorm:"column:avatar_url;type:text" json:"avatar_url"`
-	VoiceConfig *string    `gorm:"column:voice_config;type:jsonb" json:"voice_config"`
-	CreatedAt   *time.Time `gorm:"column:created_at;type:timestamp with time zone;autoCreateTime" json:"created_at"`
-	UpdatedAt   *time.Time `gorm:"column:updated_at;type:timestamp with time zone;autoUpdateTime" json:"updated_at"`
+	ID           string    `gorm:"column:id;type:uuid;primaryKey;comment:角色ID" json:"id"`                                                  // 角色ID
+	Name         string    `gorm:"column:name;type:text;not null;comment:角色名" json:"name"`                                                 // 角色名
+	Prompt       string    `gorm:"column:prompt;type:text;not null;comment:角色提示词" json:"prompt"`                                           // 角色提示词
+	Avatar       *string   `gorm:"column:avatar;type:text;comment:角色头像地址" json:"avatar"`                                                   // 角色头像地址
+	AudioExample *string   `gorm:"column:audio_example;type:text;comment:示例音频" json:"audio_example"`                                       // 示例音频
+	CreatedAt    time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;autoCreateTime;comment:创建时间" json:"created_at"` // 创建时间
+	UpdatedAt    time.Time `gorm:"column:updated_at;type:timestamp with time zone;not null;autoUpdateTime;comment:更新时间" json:"updated_at"` // 更新时间
+	Voice        *string   `gorm:"column:voice;type:uuid;comment:自定义音色" json:"voice"`                                                      // 自定义音色
+	Description  *string   `gorm:"column:description;type:text;comment:角色描述" json:"description"`                                           // 角色描述
+	Flag         bool      `gorm:"column:flag;type:boolean;not null;comment:是否克隆" json:"flag"`                                             // 是否克隆
+	Status       int32     `gorm:"column:status;type:integer;not null;default:3;comment:1.审核中2.可用3.禁用" json:"status"`                      // 1.审核中2.可用3.禁用
 }
 
 // TableName Character's table name

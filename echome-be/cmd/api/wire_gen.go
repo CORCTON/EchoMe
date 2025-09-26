@@ -30,12 +30,7 @@ func InitializeApplication(configPath2 string) (*app.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	databaseConfig := config.GetDatabaseConfig(configConfig)
-	db, err := infra.NewDB(databaseConfig)
-	if err != nil {
-		return nil, err
-	}
-	characterRepository := infra.NewCharacterRepository(db)
+	characterRepository := infra.NewCharacterRepository()
 	aliClient, err := client.NewAIServiceFromConfig(configConfig)
 	if err != nil {
 		return nil, err

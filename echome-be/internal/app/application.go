@@ -3,11 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/justin/echome-be/config"
 	"github.com/justin/echome-be/internal/interfaces"
@@ -73,11 +74,12 @@ func (a *Application) Run() error {
 	g, gCtx := errgroup.WithContext(ctx)
 	// Start server in a goroutine
 	g.Go(func() error {
-		log.Printf("🚀 Server starting on port %s", a.config.Server.Port)
-		log.Printf("🔗 Server URL: http://localhost:%s", a.config.Server.Port)
-		log.Printf("📚 API Documentation: http://localhost:%s/swagger/", a.config.Server.Port)
-		log.Printf("❤️  Health Check: http://localhost:%s/health", a.config.Server.Port)
-		log.Printf("🤖 AI Service: %s", a.config.AI.ServiceType)
+		// 保留关键的启动日志信息
+		zap.L().Info("Server starting",
+			zap.String("port", a.config.Server.Port),
+			zap.String("api_docs", fmt.Sprintf("http://localhost:%s/swagger/", a.config.Server.Port)),
+			zap.String("health_check", fmt.Sprintf("http://localhost:%s/health", a.config.Server.Port)),
+			zap.String("ai_service", a.config.AI.ServiceType))
 
 		// Create a listener that will be closed when the context is done
 		server := &http.Server{
@@ -92,9 +94,10 @@ func (a *Application) Run() error {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			log.Println("📴 Shutting down server...")
+			// 保留关键的关闭日志信息
+			zap.L().Info("Shutting down server...")
 			if err := server.Shutdown(shutdownCtx); err != nil {
-				log.Printf("Error during server shutdown: %v", err)
+				zap.L().Error("Error during server shutdown", zap.Error(err))
 			}
 		}()
 
@@ -105,12 +108,36 @@ func (a *Application) Run() error {
 		return nil
 	})
 
+	// Start voice status checking task
+	g.Go(func() error {
+		ticker := time.NewTicker(10 * time.Minute) // 每10分钟检查一次
+		defer ticker.Stop()
+		
+		// 初始启动时立即检查一次
+		if err := a.handler.GetRouter().GetCharacterService().CheckAndUpdatePendingCharacters(gCtx); err != nil {
+		zap.L().Error("Failed to check pending characters on startup", zap.Error(err))
+		}
+		
+		for {
+			select {
+			case <-gCtx.Done():
+				zap.L().Info("Voice status checking task stopped")
+				return nil
+			case <-ticker.C:
+				zap.L().Info("Checking pending characters voice status")
+				if err := a.handler.GetRouter().GetCharacterService().CheckAndUpdatePendingCharacters(gCtx); err != nil {
+					zap.L().Error("Failed to check pending characters", zap.Error(err))
+				}
+			}
+		}
+	})
+
 	// Wait for all goroutines to finish or until context is canceled
 	if err := g.Wait(); err != nil {
-		log.Printf("Application error: %v", err)
+		zap.L().Error("Application error", zap.Error(err))
 		return err
 	}
 
-	log.Println("👋 Server exited gracefully")
+	zap.L().Info("Server exited gracefully")
 	return nil
 }

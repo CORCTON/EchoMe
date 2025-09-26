@@ -36,9 +36,16 @@ type AIService interface {
 
 	// VoiceClone 执行语音克隆操作
 	// @param ctx 上下文
-	// @param config 语音克隆配置
+	// @param url 音频URL
 	// @return string 克隆的声音ID
-	VoiceClone(ctx context.Context, config *VoiceCloneConfig) (*string, error)
+	VoiceClone(ctx context.Context, url string) (*string, error)
+
+	// GetVoiceStatus 查询音色状态
+	// @param ctx 上下文
+	// @param voiceID 音色ID
+	// @return bool 音色是否可用
+	// @return error 错误信息
+	GetVoiceStatus(ctx context.Context, voiceID string) (bool, error)
 }
 
 // ASRConfig 定义ASR配置参数
@@ -56,20 +63,4 @@ type TTSConfig struct {
 	Format string  // pcm / mp3
 	Mode           string  // server_commit / commit
 	Lang           string  // 语言类型，如"zh"、"en"等
-}
-
-// VoiceCloneConfig 定义语音克隆配置参数
-type VoiceCloneConfig struct {
-	// 克隆目标模型
-	TargetModel string `json:"target_model"`
-	// 音频URL，必须是公网可访问的URL
-	AudioURL string `json:"audio_url"`
-	// 音频文件名
-	AudioFilename string `json:"audio_filename,omitempty"`
-	// 克隆的声音名称
-	VoiceName string `json:"voice_name"`
-	// 克隆的声音描述
-	VoiceDescription string `json:"voice_description,omitempty"`
-	// 语言类型，如"zh"、"en"等
-	LanguageType string `json:"language_type"`
 }
