@@ -1,0 +1,47 @@
+[
+  {
+    "test_case": "短文本测试(10字符)",
+    "success": true,
+    "message": "测试成功，音频大小: 640768 bytes，二进制消息数: 95，响应时间: 6021 ms",
+    "audio_received": true,
+    "audio_size": 640768,
+    "binary_messages_received": 95,
+    "response_time": 6021
+  },
+  {
+    "test_case": "短文本带标点测试",
+    "success": true,
+    "message": "测试成功，音频大小: 405276 bytes，二进制消息数: 60，响应时间: 3643 ms",
+    "audio_received": true,
+    "audio_size": 405276,
+    "binary_messages_received": 60,
+    "response_time": 3643
+  },
+  {
+    "test_case": "中等长度文本测试",
+    "success": true,
+    "message": "测试成功，音频大小: 362500 bytes，二进制消息数: 54，响应时间: 3744 ms",
+    "audio_received": true,
+    "audio_size": 362500,
+    "binary_messages_received": 54,
+    "response_time": 3744
+  },
+  {
+    "test_case": "长文本测试",
+    "success": true,
+    "message": "测试成功，音频大小: 850684 bytes，二进制消息数: 127，响应时间: 8672 ms",
+    "audio_received": true,
+    "audio_size": 850684,
+    "binary_messages_received": 127,
+    "response_time": 8672
+  },
+  {
+    "test_case": "多标点符号文本测试",
+    "success": true,
+    "message": "测试成功，音频大小: 3135928 bytes，二进制消息数: 462，响应时间: 26802 ms",
+    "audio_received": true,
+    "audio_size": 3135928,
+    "binary_messages_received": 462,
+    "response_time": 26802
+  }
+]

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useCharacterStore } from "@/store/character";
 import {
   Drawer,
   DrawerClose,
@@ -36,10 +37,11 @@ export function ModelSettingsDrawer({
   onReady,
 }: ModelSettingsDrawerProps) {
   const t = useTranslations("home");
+  const { modelSettings, updateModelSettings } = useCharacterStore();
   const [settings, setSettings] = useState<ModelSettings>({
-    fileUrl: null,
-    internetAccess: false,
-    rolePrompt: character.prompt,
+    fileUrl: modelSettings.fileUrl ?? null,
+    internetAccess: false, // This feature is not in the store yet
+    rolePrompt: modelSettings.rolePrompt || character.prompt,
   });
   const [isUploading, setIsUploading] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -110,16 +112,17 @@ export function ModelSettingsDrawer({
 
   useEffect(() => {
     setSettings({
-      fileUrl: null,
+      fileUrl: modelSettings.fileUrl ?? null,
       internetAccess: false,
-      rolePrompt: character.prompt,
+      rolePrompt: modelSettings.rolePrompt || character.prompt,
     });
     setFileName(null);
     setFileError(null);
     setIsEditingPrompt(false);
-  }, [character]);
+  }, [character, modelSettings]);
 
   const handleReady = () => {
+    updateModelSettings(settings);
     onReady(settings);
     onOpenChange(false);
   };

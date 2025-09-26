@@ -184,7 +184,7 @@ export function CharacterCarousel({
         variant="outline"
         size="icon"
         onClick={scrollPrev}
-        className="absolute left-[2vw] sm:left-[3vw] md:left-4 top-[15vh] sm:top-[12vh] md:top-1/2 md:-translate-y-1/2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 z-10 shadow-lg"
+        className="cursor-pointer absolute left-[2vw] sm:left-[3vw] md:left-4 top-[15vh] sm:top-[12vh] md:top-1/2 md:-translate-y-1/2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 z-10 shadow-lg"
         style={{
           width: "min(8vw, 40px)",
           height: "min(8vw, 40px)",
@@ -197,7 +197,7 @@ export function CharacterCarousel({
         variant="outline"
         size="icon"
         onClick={scrollNext}
-        className="absolute right-[2vw] sm:right-[3vw] md:right-4 top-[15vh] sm:top-[12vh] md:top-1/2 md:-translate-y-1/2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 z-10 shadow-lg"
+        className="cursor-pointer  absolute right-[2vw] sm:right-[3vw] md:right-4 top-[15vh] sm:top-[12vh] md:top-1/2 md:-translate-y-1/2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 z-10 shadow-lg"
         style={{
           width: "min(8vw, 40px)",
           height: "min(8vw, 40px)",
@@ -213,7 +213,7 @@ export function CharacterCarousel({
             key={character.id}
             variant="ghost"
             onClick={() => scrollTo(index)}
-            className={`h-2 rounded-full transition-all duration-300 p-0 hover:scale-110 ${
+            className={`cursor-pointer h-2 rounded-full transition-all duration-300 p-0 hover:scale-110 ${
               character.id === selectedCharacter.id
                 ? "bg-slate-800 dark:bg-slate-200 w-8"
                 : "bg-slate-400 dark:bg-slate-600 w-2 hover:bg-slate-500 dark:hover:bg-slate-500"

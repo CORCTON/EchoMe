@@ -1,23 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { CharacterCarousel } from "@/components/ui/character-carousel";
-import { ModelSettingsDrawer, type ModelSettings } from "@/components/model-settings-drawer";
+import { CharacterCarousel } from "@/components/character-carousel";
+import {
+  ModelSettingsDrawer,
+  type ModelSettings,
+} from "@/components/model-settings-drawer";
 import { useRouter } from "next/navigation";
-import { voiceCharacters, type VoiceCharacter } from "@/lib/characters";
+import { useCharacterStore } from "@/store/character";
+import type { VoiceCharacter } from "@/lib/characters";
 
 export default function Home() {
   const t = useTranslations("home");
   const router = useRouter();
-  const [selectedCharacter, setSelectedCharacter] = useState<VoiceCharacter>(
-    voiceCharacters[0],
-  );
+  const {
+    characters,
+    currentCharacter,
+    setCurrentCharacter,
+    updateModelSettings,
+  } = useCharacterStore();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  useEffect(() => {
+    if (!currentCharacter && characters.length > 0) {
+      setCurrentCharacter(characters[0].id);
+    }
+  }, [currentCharacter, characters, setCurrentCharacter]);
+
   const handleCharacterSelect = (character: VoiceCharacter) => {
-    setSelectedCharacter(character);
+    setCurrentCharacter(character.id);
   };
 
   const handleTalkToCharacter = () => {
@@ -25,11 +38,10 @@ export default function Home() {
   };
 
   const handleSettingsReady = (settings: ModelSettings) => {
-    // 这里可以保存设置到状态管理或localStorage
-    console.log('Model settings:', settings);
-    
-    // 导航到聊天页面
-    router.push(`/${selectedCharacter.id}`);
+    updateModelSettings(settings);
+    if (currentCharacter) {
+      router.push(`/${currentCharacter.id}`);
+    }
   };
 
   return (
@@ -48,32 +60,38 @@ export default function Home() {
 
         {/* 轮播组件 */}
         <div className="mb-8">
-          <CharacterCarousel
-            characters={voiceCharacters}
-            selectedCharacter={selectedCharacter}
-            onCharacterSelect={handleCharacterSelect}
-          />
+          {currentCharacter && (
+            <CharacterCarousel
+              characters={characters}
+              selectedCharacter={currentCharacter}
+              onCharacterSelect={handleCharacterSelect}
+            />
+          )}
         </div>
 
         {/* 操作按钮 */}
         <div className="flex flex-col space-y-4 w-full max-w-[280px]">
-          <Button
-            size="lg"
-            className="w-full rounded-2xl cursor-pointer"
-            onClick={handleTalkToCharacter}
-          >
-            {t("talk_to", { characterName: selectedCharacter.name })}
-          </Button>
+          {currentCharacter && (
+            <Button
+              size="lg"
+              className="w-full rounded-2xl cursor-pointer"
+              onClick={handleTalkToCharacter}
+            >
+              {t("talk_to", { characterName: currentCharacter.name })}
+            </Button>
+          )}
         </div>
       </div>
 
       {/* 模型设置抽屉 */}
-      <ModelSettingsDrawer
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-        character={selectedCharacter}
-        onReady={handleSettingsReady}
-      />
+      {currentCharacter && (
+        <ModelSettingsDrawer
+          open={isSettingsOpen}
+          onOpenChange={setIsSettingsOpen}
+          character={currentCharacter}
+          onReady={handleSettingsReady}
+        />
+      )}
     </>
   );
 }
