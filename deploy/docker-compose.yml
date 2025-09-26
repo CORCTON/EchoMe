@@ -11,6 +11,14 @@ services:
       - echome-net
 
   echome-fe:
+    build:
+      context: ../echome-fe
+      args:
+        - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
+        - OSS_REGION=${OSS_REGION}
+        - OSS_ACCESS_KEY_ID=${OSS_ACCESS_KEY_ID}
+        - OSS_ACCESS_KEY_SECRET=${OSS_ACCESS_KEY_SECRET}
+        - OSS_BUCKET=${OSS_BUCKET}
     image: ghcr.io/${OWNER_LOWER:-corcton}/echome-fe:latest
     container_name: echome-fe
     restart: unless-stopped
