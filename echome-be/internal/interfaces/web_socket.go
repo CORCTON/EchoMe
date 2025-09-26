@@ -8,8 +8,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/justin/echome-be/client/aliyun"
 	"github.com/justin/echome-be/internal/domain"
-	"github.com/justin/echome-be/internal/infrastructure"
+	"github.com/justin/echome-be/internal/infra"
 	"github.com/justin/echome-be/internal/response"
 	"github.com/labstack/echo/v4"
 )
@@ -81,7 +82,7 @@ func (h *WebSocketHandlers) HandleTTSWebSocket(c echo.Context) error {
 	}
 	defer ws.Close()
 	// Use AI service to handle TTS WebSocket connection
-	if err := h.aiService.HandleTTS(c.Request().Context(), ws); err != nil {
+	if err := h.aiService.HandleTTS(c.Request().Context(), ws,aliyun.DefaultTTSConfig()); err != nil {
 		log.Printf("TTS WebSocket error: %v", err)
 		return err
 	}
@@ -167,7 +168,7 @@ func (h *WebSocketHandlers) HandleWebRTCWebSocket(c echo.Context) error {
 // @Summary 语音对话WebSocket连接
 // @Description 建立WebSocket连接，用户通过WebSocket消息发送语音或文本，返回AI生成的响应
 // @Tags websocket
-// @Param language query string false "语言" default(zh)
+// @Param characterId query string false "角色ID"
 // @Success 101
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
@@ -176,9 +177,9 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 	log.Println("Voice conversation WebSocket connection requested")
 
 	// 获取查询参数
-	language := c.QueryParam("language")
-	if language == "" {
-			language = "zh"
+	characterID := c.QueryParam("characterId")
+	if characterID == "" {
+			characterID = uuid.Nil.String()
 	}
 
 	// 升级到WebSocket
@@ -190,7 +191,6 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 	// 发送连接建立消息
 	if err := ws.WriteJSON(map[string]any{
 			"type":      "connection_established",
-			"language":  language,
 			"timestamp": time.Now(),
 	}); err != nil {
 			return err
@@ -199,7 +199,7 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 	// 创建语音对话请求
 	voiceConvReq := &domain.VoiceConversationRequest{
 			SafeConn: ws,
-			Language:      language,
+			CharacterID: uuid.MustParse(characterID),
 	}
 
 	// 启动语音对话
@@ -214,7 +214,7 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 }
 
 // 升级HTTP连接到WebSocket
-func upgradeToWebSocket(c echo.Context) (*infrastructure.SafeConn, error) {
+func upgradeToWebSocket(c echo.Context) (*infra.SafeConn, error) {
 	upgrader := websocket.Upgrader{
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
@@ -239,5 +239,5 @@ func upgradeToWebSocket(c echo.Context) (*infrastructure.SafeConn, error) {
 			time.Sleep(500 * time.Millisecond)
 	}()
 
-	return infrastructure.NewSafeConn(conn), nil
+	return infra.NewSafeConn(conn), nil
 }

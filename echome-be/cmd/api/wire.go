@@ -8,7 +8,7 @@ import (
 	"github.com/justin/echome-be/client"
 	"github.com/justin/echome-be/config"
 	"github.com/justin/echome-be/internal/app"
-	"github.com/justin/echome-be/internal/infrastructure"
+	"github.com/justin/echome-be/internal/infra"
 	"github.com/justin/echome-be/internal/interfaces"
 	"github.com/justin/echome-be/internal/service"
 )
@@ -20,7 +20,7 @@ func InitializeApplication(configPath string) (*app.Application, error) {
 		// Configuration
 		config.Load,
 		// Repositories (Infrastructure Layer)
-		infrastructure.RepositoryProviderSet,
+		infra.RepositoryProviderSet,
 		// AI Services (External Services)
 		client.AIServiceProviderSet,
 		// Business Services (Service Layer)

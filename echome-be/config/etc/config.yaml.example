@@ -1,5 +1,11 @@
 server:
   port: "8081"
+datebase:
+  host: "localhost"
+  port: "5432"
+  user: "your_db_user"
+  password: "your_db_password"
+  db_name: "your_db_name"
 ai:
   service_type: "alibailian"
   timeout: 30

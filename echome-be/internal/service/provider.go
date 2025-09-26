@@ -8,13 +8,10 @@ import (
 	"github.com/justin/echome-be/internal/service/webrtc"
 )
 
-// Provider sets for Wire
-var (
-	// ServiceProviderSet contains all service providers
-	ServiceProviderSet = wire.NewSet(
-		character.NewCharacterService,
+var ServiceProviderSet = wire.NewSet(
 		webrtc.NewWebRTCService,
 		conversation.NewConversationService,
 		wire.Bind(new(domain.ConversationService), new(*conversation.ConversationService)),
-	)
+		character.NewCharacterService,
+		wire.Bind(new(domain.CharacterService), new(*character.CharacterService)),
 )
