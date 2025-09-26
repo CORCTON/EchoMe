@@ -12,14 +12,14 @@ import (
 // CharacterService 角色服务
 type CharacterService struct {
 	characterRepo domain.CharacterRepository
-	aiService    domain.AIService
+	aiService     domain.AIService
 }
 
 // NewCharacterService 创建角色服务
 func NewCharacterService(repo domain.CharacterRepository, aiService domain.AIService) *CharacterService {
 	return &CharacterService{
 		characterRepo: repo,
-		aiService:    aiService,
+		aiService:     aiService,
 	}
 }
 
@@ -57,7 +57,7 @@ func (s *CharacterService) CreateCharacter(ctx context.Context, audio *string, c
 		}
 		character.Voice = lo.FromPtr(voiceProfile)
 	}
-	err := s.characterRepo.Save(ctx,character)
+	err := s.characterRepo.Save(ctx, character)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (s *CharacterService) CheckAndUpdatePendingCharacters(ctx context.Context) 
 			if status {
 				// 音色审核通过
 				err = s.UpdateCharacterStatus(ctx, character, domain.CharacterStatusApproved)
-			} 
+			}
 		}
 	}
 

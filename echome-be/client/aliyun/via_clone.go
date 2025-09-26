@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/justin/echome-be/internal/domain"
 )
 
 // VoiceCloneRequest 阿里云声音复刻API请求结构
@@ -37,15 +35,6 @@ type VoiceCloneAPIResponse struct {
 const (
 	apiURL = "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/customization"
 )
-
-// 默认克隆音色配置
-func DefaultVoiceCloneTTSConfig() domain.TTSConfig {
-	return domain.TTSConfig{
-		Model:  "cosyvoice-v2",
-		Voice:  "longxiaochun_v2",
-		Format: "pcm",
-	}
-}
 
 // GetVoiceStatus 根据音色ID查询音色状态
 func (client *AliClient) GetVoiceStatus(ctx context.Context, voiceID string) (bool, error) {

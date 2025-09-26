@@ -5,7 +5,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var (// 全局日志实例
+var ( // 全局日志实例
 	Logger *zap.Logger
 )
 

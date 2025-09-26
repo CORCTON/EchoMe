@@ -297,23 +297,23 @@ func handleModelStudioASRResults(ctx context.Context, asrWS *websocket.Conn, cli
 										}
 
 										// 设置写入超时
-						if err := clientWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-							zap.L().Warn("设置客户端写入超时失败", zap.Error(err))
-						}
+										if err := clientWS.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+											zap.L().Warn("设置客户端写入超时失败", zap.Error(err))
+										}
 
 										// 发送到客户端
-							if err := clientWS.WriteJSON(clientResponse); err != nil {
-								zap.L().Warn("向客户端发送ASR结果失败", zap.Error(err))
-							}
+										if err := clientWS.WriteJSON(clientResponse); err != nil {
+											zap.L().Warn("向客户端发送ASR结果失败", zap.Error(err))
+										}
 									}
 								}
 							}
 						}
 					case "task-finished":
 						zap.L().Info("ASR任务完成")
-							if !resultReceived {
-								zap.L().Warn("任务完成但未收到任何识别结果")
-							}
+						if !resultReceived {
+							zap.L().Warn("任务完成但未收到任何识别结果")
+						}
 						// 发送任务完成通知给客户端
 						_ = clientWS.WriteJSON(map[string]any{
 							"type": "asr_finished",
