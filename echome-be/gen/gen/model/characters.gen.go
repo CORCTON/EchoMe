@@ -19,6 +19,10 @@ type Character struct {
 	AudioExample *string   `gorm:"column:audio_example;type:text;comment:示例音频" json:"audio_example"`                                       // 示例音频
 	CreatedAt    time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;autoCreateTime;comment:创建时间" json:"created_at"` // 创建时间
 	UpdatedAt    time.Time `gorm:"column:updated_at;type:timestamp with time zone;not null;autoUpdateTime;comment:更新时间" json:"updated_at"` // 更新时间
+	Voice        *string   `gorm:"column:voice;type:uuid;comment:自定义音色" json:"voice"`                                                      // 自定义音色
+	Description  *string   `gorm:"column:description;type:text;comment:角色描述" json:"description"`                                           // 角色描述
+	Flag         bool      `gorm:"column:flag;type:boolean;not null;comment:是否克隆" json:"flag"`                                             // 是否克隆
+	Status       int32     `gorm:"column:status;type:integer;not null;default:3;comment:1.审核中2.可用3.禁用" json:"status"`                      // 1.审核中2.可用3.禁用
 }
 
 // TableName Character's table name

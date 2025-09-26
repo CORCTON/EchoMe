@@ -108,6 +108,30 @@ func (a *Application) Run() error {
 		return nil
 	})
 
+	// Start voice status checking task
+	g.Go(func() error {
+		ticker := time.NewTicker(10 * time.Minute) // 每10分钟检查一次
+		defer ticker.Stop()
+		
+		// 初始启动时立即检查一次
+		if err := a.handler.GetRouter().GetCharacterService().CheckAndUpdatePendingCharacters(gCtx); err != nil {
+		zap.L().Error("Failed to check pending characters on startup", zap.Error(err))
+		}
+		
+		for {
+			select {
+			case <-gCtx.Done():
+				zap.L().Info("Voice status checking task stopped")
+				return nil
+			case <-ticker.C:
+				zap.L().Info("Checking pending characters voice status")
+				if err := a.handler.GetRouter().GetCharacterService().CheckAndUpdatePendingCharacters(gCtx); err != nil {
+					zap.L().Error("Failed to check pending characters", zap.Error(err))
+				}
+			}
+		}
+	})
+
 	// Wait for all goroutines to finish or until context is canceled
 	if err := g.Wait(); err != nil {
 		zap.L().Error("Application error", zap.Error(err))

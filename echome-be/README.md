@@ -72,7 +72,7 @@ make run
 ### 角色相关
 - `GET /api/characters`: 获取所有角色
 - `GET /api/characters/{id}`: 获取单个角色
-- `POST /api/characters`: 创建角色
+- `POST /api/character`: 创建角色（语音克隆并创建角色）
 
 ### 会话相关
 - `POST /api/sessions`: 创建会话
@@ -92,6 +92,26 @@ make run
 - `GET /swagger/*`: API文档（Swagger UI）
 
 ## 功能说明
+
+### 角色创建功能
+
+主要特点：
+
+1. 通过语音克隆创建角色，自动设置角色ID为语音ID
+2. 角色信息与数据库保持一致，包含ID、Name、Prompt、Avatar、CreatedAt和UpdatedAt字段
+3. 创建角色的API需要传入：
+   - `audio`（可选，当需要自定义音色时必须）
+   - `name`（必须，角色名称）
+   - `prompt`（必须，角色提示词）
+   - `avatar`（可选，角色头像）
+   - `flag`（必须，布尔值，标识是否需要自定义音色）
+
+### 聊天功能
+
+AI对话生成功能进行了优化，现在具有以下特点：
+
+1. 当角色上下文为空时，会使用默认提示词："你是一个友好、专业的AI助手，会用自然的方式回答用户的问题。"
+2. 无论是同步还是流式响应模式，都会应用相同的角色上下文处理逻辑
 
 ### AI服务集成
 

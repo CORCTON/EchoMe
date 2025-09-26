@@ -47,13 +47,6 @@ func DefaultVoiceCloneTTSConfig() domain.TTSConfig {
 	}
 }
 
-// 创建声音复刻专用的TTS配置
-func CreateVoiceCloneTTSConfig(voiceID string, targetModel string) domain.TTSConfig {
-	config := DefaultVoiceCloneTTSConfig()
-	config.Voice = voiceID
-	return config
-}
-
 // GetVoiceStatus 根据音色ID查询音色状态
 func (client *AliClient) GetVoiceStatus(ctx context.Context, voiceID string) (bool, error) {
 	// 参数验证
@@ -120,15 +113,10 @@ func (client *AliClient) GetVoiceStatus(ctx context.Context, voiceID string) (bo
 }
 
 // 克隆声音接口
-func (client *AliClient) VoiceClone(ctx context.Context, config *domain.VoiceCloneConfig) (*string, error) {
+func (client *AliClient) VoiceClone(ctx context.Context, url string) (*string, error) {
 	// 参数验证
-	if config == nil {
-		return nil, fmt.Errorf("配置不能为空")
-	}
-
-	// 验证音频URL
-	if config.AudioURL == "" {
-		return nil, fmt.Errorf("根据阿里云文档要求，必须提供公网可访问的音频URL")
+	if url == "" {
+		return nil, fmt.Errorf("音频URL不能为空")
 	}
 
 	// 固定音色前缀
@@ -139,9 +127,10 @@ func (client *AliClient) VoiceClone(ctx context.Context, config *domain.VoiceClo
 		Model: "voice-enrollment",
 	}
 	requestBody.Input.Action = "create_voice"
-	requestBody.Input.TargetModel = config.TargetModel
+	// 固定模型
+	requestBody.Input.TargetModel = "cosyvoice-v2"
 	requestBody.Input.Prefix = prefix
-	requestBody.Input.URL = config.AudioURL
+	requestBody.Input.URL = url
 
 	// 序列化请求体
 	jsonData, err := json.Marshal(requestBody)
@@ -184,23 +173,4 @@ func (client *AliClient) VoiceClone(ctx context.Context, config *domain.VoiceClo
 	}
 
 	return &apiResponse.Output.VoiceID, nil
-}
-
-// 使用角色来做 TTS
-func (client *AliClient) TextToSpeechWithClone(ctx context.Context, text string, writer domain.WebSocketConn, c domain.Character) error {
-	// 检查音色状态
-	status, err := client.GetVoiceStatus(ctx, c.VoiceConfig.Voice)
-	if err != nil {
-		return fmt.Errorf("检查音色状态失败: %w", err)
-	}
-
-	if !status {
-		return fmt.Errorf("音色审核中,请稍后重试")
-	}
-
-	// 创建TTS配置
-	config := DefaultVoiceCloneTTSConfig()
-	// 使用voice_id作为音色标识符
-	config.Voice = c.VoiceConfig.Voice
-	return client.HandleTTS(ctx, writer, text,config)
 }

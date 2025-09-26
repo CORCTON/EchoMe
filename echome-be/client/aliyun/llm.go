@@ -74,13 +74,19 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	// 构建消息列表，支持角色上下文和对话历史
 	messages := []BailianMessage{}
 
-	// 如果有角色上下文，添加系统消息
-	if characterContext != "" {
-		messages = append(messages, BailianMessage{
-			Role:    "system",
-			Content: fmt.Sprintf("你是一个AI助手，请根据以下角色设定进行对话：%s", characterContext),
-		})
+	// 设置角色提示词，如果角色上下文为空则使用默认提示词
+	prompt := ""
+	if strings.TrimSpace(characterContext) == "" {
+		prompt = "你是一个友好、专业的AI助手，会用自然的方式回答用户的问题。"
+	} else {
+		prompt = characterContext
 	}
+
+	// 添加系统消息
+	messages = append(messages, BailianMessage{
+		Role:    "system",
+		Content: fmt.Sprintf("你是一个AI助手，请根据以下角色设定进行对话：%s", prompt),
+	})
 
 	// 添加对话历史消息
 	for _, msg := range conversationHistory {
@@ -246,7 +252,7 @@ type DashScopeStreamChunk struct {
 }
 
 // GenerateStreamResponse 生成AI流式响应（使用阿里云DashScope兼容模式）
-func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string, onChunk func(string) error) error {
+func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput string, prompt string, conversationHistory []map[string]string, onChunk func(string) error) error {
 	// 输入验证
 	if strings.TrimSpace(userInput) == "" {
 		return fmt.Errorf("user input cannot be empty")
@@ -274,13 +280,16 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 	// 构建消息列表，支持角色上下文和对话历史
 	var messages []map[string]string
 
-	// 如果有角色上下文，添加系统消息
-	if characterContext != "" {
-		messages = append(messages, map[string]string{
-			"role":    "system",
-			"content": fmt.Sprintf("你是一个AI助手，请根据以下角色设定进行对话：%s", characterContext),
-		})
+	// 设置角色提示词，如果角色上下文为空则使用默认提示词
+	if strings.TrimSpace(prompt) == "" {
+		prompt = "你是一个友好、专业的AI助手，会用自然的方式回答用户的问题。"
 	}
+
+	// 添加系统消息
+	messages = append(messages, map[string]string{
+		"role":    "system",
+		"content": fmt.Sprintf("你是一个AI助手，请根据以下角色设定进行对话：%s", prompt),
+	})
 
 	// 添加对话历史消息
 	for _, msg := range conversationHistory {
@@ -322,7 +331,7 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 	}
 
 	// 设置请求头
-	req.Header.Set("Authorization", "Bearer " + client.apiKey)
+	req.Header.Set("Authorization", "Bearer "+client.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 
@@ -395,16 +404,16 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 			}
 
 			// 处理内容块
-				if len(chunk.Choices) > 0 {
-					choice := chunk.Choices[0]
-					content := choice.Delta.Content
+			if len(chunk.Choices) > 0 {
+				choice := chunk.Choices[0]
+				content := choice.Delta.Content
 
-					// 如果有文本内容，通过回调函数返回
-					if content != "" {
-						if err := onChunk(content); err != nil {
-							return fmt.Errorf("callback error: %w", err)
-						}
+				// 如果有文本内容，通过回调函数返回
+				if content != "" {
+					if err := onChunk(content); err != nil {
+						return fmt.Errorf("callback error: %w", err)
 					}
+				}
 			}
 		}
 	}

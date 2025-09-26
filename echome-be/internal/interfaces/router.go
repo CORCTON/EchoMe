@@ -31,3 +31,8 @@ func (r *Router) RegisterAllRoutes(e *echo.Echo) {
 	// 注册 WebSocket 路由
 	r.webSocketHandlers.RegisterRoutes(e)
 }
+
+// GetCharacterService 获取角色服务
+func (r *Router) GetCharacterService() domain.CharacterService {
+	return r.characterHandlers.characterService
+}

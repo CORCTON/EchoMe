@@ -60,7 +60,6 @@ func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *d
 func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Context, sc domain.WebSocketConn, character *domain.Character) error {
 	conversationCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
 	for {
 		messageType, message, err := sc.ReadMessage()
 		if err != nil {
@@ -108,8 +107,8 @@ func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Cont
 		}
 
 		characterContext := ""
-		if character != nil {
-			characterContext = character.Description
+		if character != nil && character.Prompt != "" {
+			characterContext = character.Prompt
 		}
 
 		if structuredMessage.Stream {
@@ -149,20 +148,16 @@ func (s *ConversationService) handleStreamingConversation(
 
 	var fullResponse strings.Builder
 
-	characterContext := ""
-	var voiceProfile *domain.VoiceProfile
-	if character != nil {
-		characterContext = character.Description
-		voiceProfile = character.VoiceConfig
-	}
-
 	// Channel for LLM text chunks
 	llmTextChan := make(chan string, 100) // Buffered channel
 
-	// Configure TTS
-	ttsConfig := aliyun.DefaultTTSConfig()
-	if voiceProfile != nil {
-		ttsConfig.Voice = voiceProfile.Voice
+	// 根据角色是否开启复刻决定是否使用复刻音色
+	var ttsConfig domain.TTSConfig
+	if character != nil && character.Flag && character.Voice!=""{
+		ttsConfig = aliyun.DefaultVoiceCloneTTSConfig()
+		ttsConfig.Voice = character.Voice
+	} else {
+		ttsConfig = aliyun.DefaultTTSConfig()
 	}
 
 	g, conversationCtx := errgroup.WithContext(ctx)
@@ -199,7 +194,7 @@ func (s *ConversationService) handleStreamingConversation(
 			return nil
 		}
 
-		return s.aiService.GenerateStreamResponse(conversationCtx, userInput, characterContext, conversationHistory, onChunk)
+		return s.aiService.GenerateStreamResponse(conversationCtx, userInput, 	character.Prompt, conversationHistory, onChunk)
 	})
 
 	// Wait for both goroutines to finish

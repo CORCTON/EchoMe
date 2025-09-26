@@ -11,18 +11,17 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
-	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
 // DefaultTTSConfig 提供默认 TTS 配置
 func DefaultTTSConfig() domain.TTSConfig {
 	return domain.TTSConfig{
-		Model: "cosyvoice-v2",
-		Voice: "longxiaochun_v2",
-		// Mode:           "server_commit",
+		Model: "paraformer-realtime-v2",
+		Voice: "Jennifer",
 		Format: "pcm",
 	}
 }
@@ -130,7 +129,7 @@ func sendRunTask(ws *websocket.Conn, taskID string, config domain.TTSConfig) err
 				"format":      config.Format,
 				"sample_rate": 22050,
 			},
-			"input": map[string]interface{}{},
+			"input": map[string]any{},
 		},
 	}
 	return ws.WriteJSON(cmd)
@@ -138,14 +137,14 @@ func sendRunTask(ws *websocket.Conn, taskID string, config domain.TTSConfig) err
 
 // sendContinueTask 发送待合成文本
 func sendContinueTask(ws *websocket.Conn, taskID, text string) error {
-	cmd := map[string]interface{}{
-		"header": map[string]interface{}{
+	cmd := map[string]any{
+		"header": map[string]any{
 			"action":    "continue-task",
 			"task_id":   taskID,
 			"streaming": "duplex",
 		},
-		"payload": map[string]interface{}{
-			"input": map[string]interface{}{
+		"payload": map[string]any{
+			"input": map[string]any{
 				"text": text,
 			},
 		},

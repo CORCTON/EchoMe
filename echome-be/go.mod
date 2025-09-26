@@ -10,6 +10,7 @@ require (
 	github.com/knadh/koanf/providers/file v1.2.0
 	github.com/knadh/koanf/v2 v2.3.0
 	github.com/labstack/echo/v4 v4.13.4
+	github.com/samber/lo v1.51.0
 	github.com/swaggo/echo-swagger v1.4.1
 	github.com/swaggo/swag v1.16.6
 	go.uber.org/zap v1.27.0

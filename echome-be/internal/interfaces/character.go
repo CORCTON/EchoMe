@@ -66,64 +66,67 @@ func (h *CharacterHandlers) GetCharacterByID(c echo.Context) error {
 }
 
 
-// CreateCharacter handles POST /api/characters/clone-voice
-// @Summary 语音克隆并创建角色
-// @Description 通过语音克隆创建带有克隆声音的角色
+// CreateCharacter handles POST /api/character
+// @Summary 创建角色（语音克隆）
+// @Description 通过语音克隆创建角色
 // @Tags characters
 // @Accept json
 // @Produce json
-// @Param request body map[string]interface{} true "包含voiceCloneConfig和characterInfo的请求体"
+// @Param request body map[string]any true "包含audio（可选）、description(可选)、name（必须）、prompt（必须）、avatar（可选）和flag（必须）的请求体"
 // @Success 201 {object} domain.Character
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /characters/clone-voice [post]
+// @Router /character [post]
 func (h *CharacterHandlers) CreateCharacter(c echo.Context) error {
-	var requestBody map[string]interface{}
+	var requestBody map[string]any
 	if err := c.Bind(&requestBody); err != nil {
 		return response.BadRequest(c, "Invalid request body", err.Error())
 	}
 
-	// 解析voiceCloneConfig
-	cloneConfigData, ok := requestBody["voiceCloneConfig"].(map[string]interface{})
+	// 验证必填字段
+	name, nameOk := requestBody["name"].(string)
+	prompt, promptOk := requestBody["prompt"].(string)
+	flag, flagOk := requestBody["flag"]
+	if !nameOk || name == "" || !promptOk || prompt == "" || !flagOk {
+		return response.BadRequest(c, "Missing required fields", "name, prompt and flag are required")
+	}
+
+	// 检查flag是否为布尔类型
+	flagBool, ok := flag.(bool)
 	if !ok {
-		return response.BadRequest(c, "Missing or invalid voiceCloneConfig", "voiceCloneConfig is required")
+		return response.BadRequest(c, "Invalid field type", "flag must be a boolean")
 	}
 
-	cloneConfig := domain.VoiceCloneConfig{
-		AudioURL:         getStringField(cloneConfigData, "audioURL"),
-		VoiceName:        getStringField(cloneConfigData, "voiceName"),
-		VoiceDescription: getStringField(cloneConfigData, "voiceDescription"),
-		LanguageType:     getStringField(cloneConfigData, "languageType"),
-	}
+	// 解析可选字段
+	audio := getStringField(requestBody, "audio")
 
-	// 解析characterInfo
-	characterInfoData, ok := requestBody["characterInfo"].(map[string]interface{})
-	if !ok {
-		return response.BadRequest(c, "Missing or invalid characterInfo", "characterInfo is required")
-	}
+	avatar := getStringField(requestBody, "avatar")
 
+	description := getStringField(requestBody, "description")
+
+	// 创建角色信息
 	characterInfo := &domain.Character{
-		Name:        getStringField(characterInfoData, "name"),
-		Description: getStringField(characterInfoData, "description"),
-		Persona:     getStringField(characterInfoData, "characterSetting"),
-		AvatarURL:   getStringField(characterInfoData, "avatarURL"),
+		Name:        name,
+		Prompt:      prompt,
+		Avatar:      avatar,
+		Description: description,
+		Flag:        flagBool,
 	}
+		// 执行语音克隆并创建角色
+		character, err := h.characterService.CreateCharacter(c.Request().Context(), audio, characterInfo)
+		if err != nil {
+			return response.InternalError(c, "Failed to clone voice and create character", err.Error())
+		}
 
-	// 执行语音克隆并创建角色
-	character, err := h.characterService.CreateCharacter(c.Request().Context(), &cloneConfig, characterInfo)
-	if err != nil {
-		return response.InternalError(c, "Failed to clone voice and create character", err.Error())
-	}
-
-	return response.Created(c, character)
+		return response.Created(c, character)
 }
 
 // getStringField 从map中获取字符串字段，处理类型断言
-func getStringField(data map[string]interface{}, field string) string {
+func getStringField(data map[string]any, field string) *string {
 	value, ok := data[field]
 	if !ok {
-		return ""
+		return nil
 	}
 	strValue, _ := value.(string)
-	return strValue
+	return &strValue
 }
