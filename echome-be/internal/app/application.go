@@ -71,15 +71,6 @@ func (a *Application) Run() error {
 
 	// Use errgroup for managing server goroutine with error handling
 	g, gCtx := errgroup.WithContext(ctx)
-
-	// 在应用程序退出时关闭数据库连接
-	defer func() {
-		if err := a.handler.DBAdapter.Close(); err != nil {
-			log.Printf("Warning: Error closing database connection: %v", err)
-		} else {
-			log.Println("✅ Database connection closed successfully")
-		}
-	}()
 	// Start server in a goroutine
 	g.Go(func() error {
 		log.Printf("🚀 Server starting on port %s", a.config.Server.Port)

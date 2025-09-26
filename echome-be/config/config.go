@@ -1,9 +1,5 @@
 package config
 
-import (
-	"github.com/justin/echome-be/config/common"
-)
-
 // Config holds all application configuration
 type Config struct {
 	Server struct {
@@ -17,11 +13,11 @@ type Config struct {
 		Timeout     int    `mapstructure:"timeout"`
 		MaxRetries  int    `mapstructure:"max_retries"`
 	} `mapstructure:"ai"`
-	Aliyun Aliyun `mapstructure:"aliyun"`
+	Aliyun   Aliyun         `mapstructure:"aliyun"`
 	Database DatabaseConfig `mapstructure:"database"`
 }
 
-func Load(path string) *Config {
-	_, c := common.MustLoad[Config](path)
-	return c
+func Load(path string) (*Config, error) {
+	_, c := MustLoad[Config](path)
+	return c, nil
 }

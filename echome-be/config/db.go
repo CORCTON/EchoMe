@@ -10,6 +10,13 @@ type DatabaseConfig struct {
 	DBName   string `mapstructure:"db_name"`
 }
 
+func GetDatabaseConfig(cfg *Config) *DatabaseConfig {
+	if cfg == nil {
+		panic("config is nil")
+	}
+	return &cfg.Database
+}
+
 const postgresTcpDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable"
 
 func (cfg *DatabaseConfig) GetDSN() string {

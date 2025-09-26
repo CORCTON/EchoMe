@@ -48,7 +48,7 @@ func (s *ConversationService) StartVoiceConversation(ctx context.Context, req *d
 	var err error
 
 	if req.CharacterID != uuid.Nil {
-		character, err = s.characterService.GetCharacterByID(req.CharacterID)
+		character, err = s.characterService.GetCharacterByID(ctx,req.CharacterID)
 		if err != nil {
 			s.logger.Printf("获取角色失败: %v", err)
 			character = nil

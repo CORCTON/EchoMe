@@ -1,4 +1,4 @@
-package common
+package config
 
 import (
 	"github.com/knadh/koanf/parsers/yaml"

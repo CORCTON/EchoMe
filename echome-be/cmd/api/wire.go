@@ -18,7 +18,7 @@ import (
 func InitializeApplication(configPath string) (*app.Application, error) {
 	panic(wire.Build(
 		// Configuration
-		config.Load,
+		config.ConfigProviderSet,
 		// Repositories (Infrastructure Layer)
 		infra.RepositoryProviderSet,
 		// AI Services (External Services)
