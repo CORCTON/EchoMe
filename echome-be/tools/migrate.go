@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/justin/echome-be/config"
 	"github.com/justin/echome-be/internal/domain"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -83,14 +84,14 @@ func insertDefaultCharacters(db *gorm.DB) {
 			Name:        "小助手",
 			Prompt:      "你是一个友善、耐心的AI助手，总是乐于帮助用户解决问题。你说话温和，回答详细且有用。",
 			Avatar:      nil,
-			Voice:       "xiaoyun", // 阿里云小云语音
+			Voice:       lo.ToPtr("xiaoyun"), // 阿里云小云语音
 		},
 		{
 			ID:          uuid.New(),
 			Name:        "专业顾问",
 			Prompt:   "你是一个专业的技术顾问，具有丰富的技术知识和经验。你的回答准确、专业，善于用简单的语言解释复杂的技术概念。",
 			Avatar:   nil,
-			Voice: "zhiwei", // 阿里云志伟语音（男声）
+			Voice: lo.ToPtr("zhiwei"), // 阿里云志伟语音（男声）
 		},
 	}
 

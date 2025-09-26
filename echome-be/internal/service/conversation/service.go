@@ -150,8 +150,8 @@ func (s *ConversationService) handleStreamingConversation(
 
 	// 根据角色是否开启复刻决定是否使用复刻音色
 	 ttsConfig := aliyun.DefaultTTSConfig()
-	if character != nil && character.Flag && character.Voice != "" {
-		ttsConfig.Voice = character.Voice
+	if character != nil && character.Flag && character.Voice != nil {
+		ttsConfig.Voice = *character.Voice
 	}
 
 	g, conversationCtx := errgroup.WithContext(ctx)

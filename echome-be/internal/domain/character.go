@@ -30,7 +30,7 @@ type Character struct {
 	// 角色头像URL
 	Avatar *string `json:"avatar"`
 	// 角色音色
-	Voice string `json:"voice"`
+	Voice *string `json:"voice"`
 	// 是否克隆音色
 	Flag bool `json:"flag"`
 	// 音色状态，使用枚举值: 1-审核中, 2-可用, 3-禁用

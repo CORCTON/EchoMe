@@ -43,14 +43,15 @@ func (r *CharacterRepository) GetAll(ctx context.Context) ([]*domain.Character, 
 			ID:        id,
 			Name:      charModel.Name,
 			Prompt:    charModel.Prompt,
+			Description: charModel.Description,
+			Status: charModel.Status,
+			Avatar: charModel.Avatar,
+			Voice: charModel.Voice,
+			Flag: charModel.Flag,
 			CreatedAt: charModel.CreatedAt,
 			UpdatedAt: charModel.UpdatedAt,
 		}
 
-		// 处理可空字段
-		if charModel.Avatar != nil {
-			character.Avatar = charModel.Avatar
-		}
 
 		characters = append(characters, character)
 	}
@@ -70,13 +71,13 @@ func (r *CharacterRepository) GetByID(ctx context.Context, id uuid.UUID) (*domai
 		ID:        id,
 		Name:      charModel.Name,
 		Prompt:    charModel.Prompt,
+		Description: charModel.Description,
+		Status: charModel.Status,
+		Avatar: charModel.Avatar,
+		Voice: charModel.Voice,
+		Flag: charModel.Flag,
 		CreatedAt: charModel.CreatedAt,
 		UpdatedAt: charModel.UpdatedAt,
-	}
-
-	// 处理可空字段
-	if charModel.Avatar != nil {
-		character.Avatar = charModel.Avatar
 	}
 
 	return character, nil
@@ -172,7 +173,7 @@ func (r *CharacterRepository) GetCharactersByStatus(ctx context.Context, status 
 			character.Description = charModel.Description
 		}
 		if charModel.Voice != nil {
-			character.Voice = *charModel.Voice
+			character.Voice = charModel.Voice
 		}
 
 		characters = append(characters, character)
