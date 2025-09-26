@@ -50,7 +50,7 @@ export const useVadStore = create<VadState>((set, get) => ({
         onnxWASMBasePath: "/vad/",
         model: "v5",
         preSpeechPadMs: 200,
-        positiveSpeechThreshold: 0.8,
+        positiveSpeechThreshold: 0.9,
         minSpeechMs: 100,
         onSpeechStart: () => {
           const { echoGuardUntil, interrupt } =

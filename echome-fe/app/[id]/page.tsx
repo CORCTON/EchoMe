@@ -221,7 +221,7 @@ export default function Page() {
                     >
                       {editingMessageIndex === originalMessageIndex ? (
                         <Textarea
-                          className="min-w-[unset] w-full max-w-[70%] sm:max-w-[60%] md:max-w-[40%] lg:max-w-[50%]"
+                          className="min-w-[40vh]"
                           defaultValue={msg.content}
                           ref={(input) => input?.focus()}
                           onBlur={(e) => handleSaveEdit(e.target.value)}
