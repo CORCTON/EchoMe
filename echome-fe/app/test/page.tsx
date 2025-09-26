@@ -37,6 +37,7 @@ export default function Page() {
   );
   const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -65,10 +66,29 @@ export default function Page() {
   }, [isConversationStarted, connectLLM]);
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && !userHasScrolled) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   });
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    const handleUserScroll = () => {
+      setUserHasScrolled(true);
+    };
+
+    if (scrollElement && !userHasScrolled) {
+      scrollElement.addEventListener("wheel", handleUserScroll);
+      scrollElement.addEventListener("touchstart", handleUserScroll);
+    }
+
+    return () => {
+      if (scrollElement) {
+        scrollElement.removeEventListener("wheel", handleUserScroll);
+        scrollElement.removeEventListener("touchstart", handleUserScroll);
+      }
+    };
+  }, [userHasScrolled]);
 
   const handleSendMessage = () => {
     if (input.trim() && characterId && currentCharacter) {
@@ -278,14 +298,6 @@ export default function Page() {
             className="flex-1"
           />
           <Button onClick={handleSendMessage}>Send</Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => setIsModelSettingsOpen(true)}
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
         </div>
       </div>
       {currentCharacter && (

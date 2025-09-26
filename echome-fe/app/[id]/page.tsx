@@ -38,6 +38,7 @@ export default function Page() {
     null,
   );
   const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { isVadReady, voiceActivity, transcript, initVad, resetTranscript } =
@@ -104,10 +105,29 @@ export default function Page() {
   }, [isVadReady, isConversationStarted, characterId, resumeAudio, connectLLM]);
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && !userHasScrolled) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   });
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    const handleUserScroll = () => {
+      setUserHasScrolled(true);
+    };
+
+    if (scrollElement && !userHasScrolled) {
+      scrollElement.addEventListener("wheel", handleUserScroll);
+      scrollElement.addEventListener("touchstart", handleUserScroll);
+    }
+
+    return () => {
+      if (scrollElement) {
+        scrollElement.removeEventListener("wheel", handleUserScroll);
+        scrollElement.removeEventListener("touchstart", handleUserScroll);
+      }
+    };
+  }, [userHasScrolled]);
 
   useEffect(() => {
     if (voiceActivity === VoiceActivity.Speaking && isPlaying) {
@@ -332,16 +352,6 @@ export default function Page() {
           >
             <AudioAnimation activity={animationActivity} />
           </div>
-        </div>
-        <div className="absolute bottom-8 left-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => setIsModelSettingsOpen(true)}
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
         </div>
       </div>
       {currentCharacter && (
