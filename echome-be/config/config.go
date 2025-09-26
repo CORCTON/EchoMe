@@ -1,8 +1,6 @@
 package config
 
 import (
-	"os"
-
 	"github.com/justin/echome-be/config/common"
 )
 
@@ -20,20 +18,10 @@ type Config struct {
 		MaxRetries  int    `mapstructure:"max_retries"`
 	} `mapstructure:"ai"`
 	Aliyun Aliyun `mapstructure:"aliyun"`
+	Database DatabaseConfig `mapstructure:"database"`
 }
 
 func Load(path string) *Config {
 	_, c := common.MustLoad[Config](path)
-
-	// 统一使用 ALIYUN_API_KEY 作为环境变量来源
-	if apiKey := os.Getenv("ALIYUN_API_KEY"); apiKey != "" {
-		c.Aliyun.APIKey = apiKey
-	}
-
-	// 如果没有设置Endpoint，使用默认值
-	if c.Aliyun.Endpoint == "" {
-		c.Aliyun.Endpoint = DefaultALBLEndpoint
-	}
-
 	return c
 }

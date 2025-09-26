@@ -10,7 +10,7 @@ import (
 	"github.com/justin/echome-be/client"
 	"github.com/justin/echome-be/config"
 	"github.com/justin/echome-be/internal/app"
-	"github.com/justin/echome-be/internal/infrastructure"
+	"github.com/justin/echome-be/internal/infra"
 	"github.com/justin/echome-be/internal/interfaces"
 	"github.com/justin/echome-be/internal/service/character"
 	"github.com/justin/echome-be/internal/service/conversation"
@@ -27,15 +27,21 @@ import (
 // 参数: configPath - 配置文件路径
 func InitializeApplication(configPath2 string) (*app.Application, error) {
 	configConfig := config.Load(configPath2)
-	memoryCharacterRepository := infrastructure.NewMemoryCharacterRepository()
-	characterService := character.NewCharacterService(memoryCharacterRepository)
-	webRTCService := webrtc.NewWebRTCService()
+	databaseConfig := &configConfig.Database
+	pgDB, err := infra.NewDB(databaseConfig)
+	if err != nil {
+		return nil, err
+	}
+	db := infra.ProvideGormDB(pgDB)
+	characterRepository := infra.NewCharacterRepository(db)
 	aliClient, err := client.NewAIServiceFromConfig(configConfig)
 	if err != nil {
 		return nil, err
 	}
+	characterService := character.NewCharacterService(characterRepository, aliClient)
+	webRTCService := webrtc.NewWebRTCService()
 	conversationService := conversation.NewConversationService(aliClient, characterService)
-	handlers := interfaces.NewHandlers(characterService, webRTCService, aliClient, conversationService)
+	handlers := interfaces.NewHandlers(characterService, webRTCService, aliClient, conversationService, pgDB)
 	application := app.NewApplication(configConfig, handlers)
 	return application, nil
 }

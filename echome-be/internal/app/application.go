@@ -12,7 +12,6 @@ import (
 	"github.com/justin/echome-be/config"
 	"github.com/justin/echome-be/internal/interfaces"
 	"github.com/justin/echome-be/internal/middleware"
-	"github.com/justin/echome-be/internal/response"
 	"github.com/justin/echome-be/internal/validation"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
@@ -56,170 +55,7 @@ func NewApplication(config *config.Config, handler *interfaces.Handlers) *Applic
 		echo:      e,
 		validator: validation.NewConfigValidator(),
 	}
-
-	// Health check endpoint (registered after app creation)
-	e.GET("/health", app.healthCheckHandler)
-
 	return app
-}
-
-// ValidateServices performs basic validation of all services
-func (a *Application) ValidateServices() error {
-	log.Println("Validating application services...")
-
-	// Validate configuration
-	if err := a.validateConfiguration(); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
-	}
-
-	// Validate router and handlers
-	if a.handler == nil {
-		return fmt.Errorf("handlers not initialized")
-	}
-
-	router := a.handler.GetRouter()
-	if router == nil {
-		return fmt.Errorf("router not initialized")
-	}
-
-	// Validate that essential routes are registered
-	if err := a.validateRoutes(); err != nil {
-		return fmt.Errorf("route validation failed: %w", err)
-	}
-
-	log.Println("All services validated successfully")
-	return nil
-}
-
-// validateRoutes checks that essential routes are properly registered
-func (a *Application) validateRoutes() error {
-	routes := a.echo.Routes()
-
-	// Check for essential WebSocket routes
-	essentialRoutes := []string{
-		"/ws/asr",
-		"/ws/tts",
-		"/ws/webrtc/:sessionId/:userId",
-		"/ws/voice-conversation",
-		"/health",
-	}
-
-	registeredRoutes := make(map[string]bool)
-	for _, route := range routes {
-		registeredRoutes[route.Path] = true
-	}
-
-	for _, essential := range essentialRoutes {
-		if !registeredRoutes[essential] {
-			return fmt.Errorf("essential route not registered: %s", essential)
-		}
-	}
-
-	log.Printf("Validated %d routes, including all essential WebSocket endpoints", len(routes))
-	return nil
-}
-
-// validateConfiguration validates the application configuration
-func (a *Application) validateConfiguration() error {
-	if a.config == nil {
-		return fmt.Errorf("configuration is nil")
-	}
-
-	// 使用专门的配置验证器
-	return a.validator.ValidateConfig(a.config)
-}
-
-// healthCheckHandler provides a health check endpoint with actual service validation
-func (a *Application) healthCheckHandler(c echo.Context) error {
-	// Perform actual health checks for each component
-	healthStatus := "healthy"
-	services := make(map[string]map[string]string)
-	errors := []string{}
-
-	// Check server health (basic check - if we're handling this request, server is up)
-	serverStatus := "running"
-	services["server"] = map[string]string{
-		"status":   serverStatus,
-		"port":     a.config.Server.Port,
-		"protocol": "http",
-	}
-
-	// Check AI service configuration
-	aiserviceStatus := "configured"
-	aiserviceDetails := map[string]string{
-		"status":     aiserviceStatus,
-		"type":       a.config.AI.ServiceType,
-		"timeout":    fmt.Sprintf("%dms", a.config.AI.Timeout),
-		"maxRetries": fmt.Sprintf("%d", a.config.AI.MaxRetries),
-	}
-
-	// If using Aliyun service, check key and endpoint presence
-	if a.config.AI.ServiceType == "alibailian" {
-		if a.config.Aliyun.APIKey == "" {
-			aiserviceStatus = "error"
-			aiserviceDetails["error"] = "Missing API key"
-			errors = append(errors, "AI service missing API key")
-		}
-		if a.config.Aliyun.Endpoint == "" {
-			aiserviceStatus = "error"
-			aiserviceDetails["error"] = "Missing endpoint"
-			errors = append(errors, "AI service missing endpoint")
-		}
-	}
-	services["ai_service"] = aiserviceDetails
-
-	// Check WebSocket availability (routes are validated at startup)
-	services["websockets"] = map[string]string{
-		"status": "available",
-	}
-
-	// Check configuration validity
-	configStatus := "valid"
-	if err := a.validateConfiguration(); err != nil {
-		configStatus = "invalid"
-		errors = append(errors, fmt.Sprintf("Configuration error: %v", err))
-	}
-	services["configuration"] = map[string]string{
-		"status": configStatus,
-	}
-
-	// Update overall status if any errors found
-	if len(errors) > 0 {
-		healthStatus = "degraded"
-	}
-
-	healthData := map[string]any{
-		"status":    healthStatus,
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"version":   "1.0.0", // Can be retrieved from config or build info
-		"services":  services,
-		"endpoints": map[string][]string{
-			"websocket": {
-		"/ws/asr",
-		"/ws/tts",
-		"/ws/webrtc/:sessionId/:userId",
-		"/ws/voice-conversation",
-	},
-			"api": {
-				"/health",
-				"/swagger/*",
-				"/api/characters",
-				"/api/characters/search",
-				"/api/characters/:id",
-				"/api/sessions",
-				"/api/sessions/:id",
-				"/api/sessions/:id/messages",
-			},
-		},
-	}
-
-	// If there are errors, include them in the response
-	if len(errors) > 0 {
-		healthData["errors"] = errors
-		return c.JSON(http.StatusServiceUnavailable, healthData)
-	}
-
-	return response.Success(c, healthData)
 }
 
 // GetEcho returns the Echo instance for testing
@@ -236,6 +72,14 @@ func (a *Application) Run() error {
 	// Use errgroup for managing server goroutine with error handling
 	g, gCtx := errgroup.WithContext(ctx)
 
+	// 在应用程序退出时关闭数据库连接
+	defer func() {
+		if err := a.handler.DBAdapter.Close(); err != nil {
+			log.Printf("Warning: Error closing database connection: %v", err)
+		} else {
+			log.Println("✅ Database connection closed successfully")
+		}
+	}()
 	// Start server in a goroutine
 	g.Go(func() error {
 		log.Printf("🚀 Server starting on port %s", a.config.Server.Port)

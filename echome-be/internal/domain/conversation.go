@@ -29,32 +29,28 @@ type ConversationService interface {
 
 	// ProcessTextMessage 处理文本消息并返回AI响应
 	ProcessTextMessage(ctx context.Context, req *TextMessageRequest) (*TextMessageResponse, error)
-
-	// GetCharacterVoiceConfig 获取角色的语音配置
-	GetCharacterVoiceConfig(characterID uuid.UUID) (*VoiceConfig, error)
 }
 
 // VoiceConversationRequest represents a voice conversation request (simplified single-user mode)
 type VoiceConversationRequest struct {
 	SafeConn WebSocketConn `json:"-"`
 	CharacterID   uuid.UUID       `json:"character_id"`
-	Language      string          `json:"language,omitempty"`
 }
 
 // ContextMessage 对话上下文中的单条消息
 
 type ContextMessage struct {
 	Role    string `json:"role"`    // "system", "user", or "assistant"
-	Content string `json:"content"` // Message content
+	Content string `json:"content"` // 历史记录
 }
 
 // TextMessageRequest 带上下文的文本消息请求
 
 type TextMessageRequest struct {
-	UserInput string           `json:"user_input"`
-	UserID    string           `json:"user_id"`
-	CharacterID string        `json:"character_id,omitempty"`
-	Messages  []ContextMessage `json:"messages,omitempty"` // Conversation context
+	UserInput    string           `json:"user_input"`
+	UserID       string           `json:"user_id"`
+	CharacterID  uuid.UUID        `json:"character_id"`
+	Messages     []ContextMessage `json:"messages,omitempty"`
 }
 
 // TextMessageResponse 文本消息响应

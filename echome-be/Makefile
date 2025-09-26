@@ -9,6 +9,14 @@ CONFIG_PATH = config/etc/config.yaml
 vet:
 	go vet ./...
 
+# 迁移数据库
+migrate:
+	go run ./tools/migrate.go -f $(CONFIG_PATH)
+
+# 数据库生成代码
+gen:
+	go run ./tools/gen.go -f $(CONFIG_PATH)
+
 # 构建二进制文件
 build:
 	go build -o $(APP_NAME) ./cmd/api
@@ -36,6 +44,9 @@ clean:
 # 帮助信息
 help:
 	@echo "可用命令："
+	@echo "  make vet          - 运行代码静态分析"
+	@echo "  make migrate      - 迁移数据库"
+	@echo "  make gen          - 生成数据库代码"
 	@echo "  make build        - 构建二进制文件"
 	@echo "  make run          - 直接运行应用程序（不构建）"
 	@echo "  make build-run    - 构建并运行应用程序"

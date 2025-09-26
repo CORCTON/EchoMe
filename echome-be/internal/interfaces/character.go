@@ -21,7 +21,7 @@ func NewCharacterHandlers(characterService domain.CharacterService) *CharacterHa
 func (h *CharacterHandlers) RegisterRoutes(e *echo.Echo) {
 	e.GET("/api/characters", h.GetCharacters)
 	e.GET("/api/characters/:id", h.GetCharacterByID)
-	e.POST("/api/characters", h.CreateCharacter)
+	e.POST("/api/character", h.CreateCharacter)
 }
 
 // GetCharacters handles GET /api/characters
@@ -65,26 +65,65 @@ func (h *CharacterHandlers) GetCharacterByID(c echo.Context) error {
 	return response.Success(c, character)
 }
 
-// CreateCharacter handles POST /api/characters
-// @Summary 创建角色
-// @Description 创建一个新角色
+
+// CreateCharacter handles POST /api/characters/clone-voice
+// @Summary 语音克隆并创建角色
+// @Description 通过语音克隆创建带有克隆声音的角色
 // @Tags characters
 // @Accept json
 // @Produce json
-// @Param character body domain.Character true "角色信息"
+// @Param request body map[string]interface{} true "包含voiceCloneConfig和characterInfo的请求体"
 // @Success 201 {object} domain.Character
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /characters [post]
+// @Router /characters/clone-voice [post]
 func (h *CharacterHandlers) CreateCharacter(c echo.Context) error {
-	var character domain.Character
-	if err := c.Bind(&character); err != nil {
-		return response.BadRequest(c, "Invalid character data", err.Error())
+	var requestBody map[string]interface{}
+	if err := c.Bind(&requestBody); err != nil {
+		return response.BadRequest(c, "Invalid request body", err.Error())
 	}
 
-	if err := h.characterService.CreateCharacter(&character); err != nil {
-		return response.InternalError(c, "Failed to create character", err.Error())
+	// 解析voiceCloneConfig
+	cloneConfigData, ok := requestBody["voiceCloneConfig"].(map[string]interface{})
+	if !ok {
+		return response.BadRequest(c, "Missing or invalid voiceCloneConfig", "voiceCloneConfig is required")
+	}
+
+	cloneConfig := domain.VoiceCloneConfig{
+		AudioURL:         getStringField(cloneConfigData, "audioURL"),
+		VoiceName:        getStringField(cloneConfigData, "voiceName"),
+		VoiceDescription: getStringField(cloneConfigData, "voiceDescription"),
+		LanguageType:     getStringField(cloneConfigData, "languageType"),
+	}
+
+	// 解析characterInfo
+	characterInfoData, ok := requestBody["characterInfo"].(map[string]interface{})
+	if !ok {
+		return response.BadRequest(c, "Missing or invalid characterInfo", "characterInfo is required")
+	}
+
+	characterInfo := &domain.Character{
+		Name:        getStringField(characterInfoData, "name"),
+		Description: getStringField(characterInfoData, "description"),
+		Persona:     getStringField(characterInfoData, "characterSetting"),
+		AvatarURL:   getStringField(characterInfoData, "avatarURL"),
+	}
+
+	// 执行语音克隆并创建角色
+	character, err := h.characterService.CreateCharacter(c.Request().Context(), &cloneConfig, characterInfo)
+	if err != nil {
+		return response.InternalError(c, "Failed to clone voice and create character", err.Error())
 	}
 
 	return response.Created(c, character)
+}
+
+// getStringField 从map中获取字符串字段，处理类型断言
+func getStringField(data map[string]interface{}, field string) string {
+	value, ok := data[field]
+	if !ok {
+		return ""
+	}
+	strValue, _ := value.(string)
+	return strValue
 }

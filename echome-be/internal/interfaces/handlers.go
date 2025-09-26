@@ -6,14 +6,16 @@ import (
 )
 
 type Handlers struct {
-	router *Router
+	router     *Router
+	DBAdapter  domain.DBAdapter
 }
 
 // NewHandlers
-func NewHandlers(characterService domain.CharacterService, webRTCService domain.WebRTCService, aiService domain.AIService, conversationService domain.ConversationService) *Handlers {
+func NewHandlers(characterService domain.CharacterService, webRTCService domain.WebRTCService, aiService domain.AIService, conversationService domain.ConversationService, dbAdapter domain.DBAdapter) *Handlers {
 	router := NewRouter(characterService, webRTCService, aiService, conversationService)
 	return &Handlers{
-		router: router,
+		router:    router,
+		DBAdapter: dbAdapter,
 	}
 }
 

@@ -32,22 +32,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize application: %v\n", err)
 	}
-
-	// Validate all services before starting
-	log.Println("Validating services...")
-	if err := application.ValidateServices(); err != nil {
-		log.Fatalf("Service validation failed: %v\n", err)
-	}
-
-	log.Println("✓ Application initialized and validated successfully")
-	log.Println("✓ All WebSocket endpoints registered:")
-	log.Println("  - /ws/asr (Automatic Speech Recognition)")
-	log.Println("  - /ws/tts (Text-to-Speech)")
-	log.Println("  - /ws/webrtc/:sessionId/:userId (WebRTC Signaling)")
-	log.Println("  - /ws/voice-conversation (Voice Conversation)")
-	log.Println("✓ Health check endpoint available at /health")
-	log.Println("✓ API documentation available at /swagger/")
-
 	// Run the application
 	if err := application.Run(); err != nil {
 		log.Fatalf("Application error: %v\n", err)
