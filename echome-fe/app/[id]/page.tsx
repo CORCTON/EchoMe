@@ -19,6 +19,9 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { Loader } from "@/components/ui/loader";
 import { Textarea } from "@/components/ui/textarea";
+import { ModelSettingsDrawer, ModelSettings } from "@/components/model-settings-drawer";
+import { Button } from "@/components/ui/button";
+import { Paperclip } from "lucide-react";
 
 export default function Page() {
   const params = useParams<{ id: string }>();
@@ -28,6 +31,7 @@ export default function Page() {
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
     null,
   );
+  const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { isVadReady, voiceActivity, transcript, initVad, resetTranscript } =
@@ -103,6 +107,25 @@ export default function Page() {
       interrupt();
     }
   }, [voiceActivity, interrupt, isPlaying]);
+
+  const handleModelSettingsReady = (settings: ModelSettings) => {
+    const character = getCharacterById(characterId);
+    if (!character) return;
+
+    let systemPrompt = settings.rolePrompt || character.prompt;
+    if (settings.fileUrl) {
+      systemPrompt += `\n\n[User Uploaded File: ${settings.fileUrl}]`;
+    }
+
+    const messages = [
+      {
+        role: "system" as const,
+        content: systemPrompt,
+      },
+      ...history,
+    ];
+    start({ characterId, messages });
+  };
 
   const isUiReady = useMemo(() => {
     return isVadReady && isConversationStarted;
@@ -301,7 +324,25 @@ export default function Page() {
             <AudioAnimation activity={animationActivity} />
           </div>
         </div>
+        <div className="absolute bottom-8 left-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            onClick={() => setIsModelSettingsOpen(true)}
+          >
+            <Paperclip className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
+      {currentCharacter && (
+        <ModelSettingsDrawer
+          open={isModelSettingsOpen}
+          onOpenChange={setIsModelSettingsOpen}
+          character={currentCharacter}
+          onReady={handleModelSettingsReady}
+        />
+      )}
     </div>
   );
 }

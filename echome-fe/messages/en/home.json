@@ -10,5 +10,19 @@
   "cancel": "Cancel",
   "delete": "Delete",
   "edit_message": "Edit message",
-  "retry": "Retry"
+  "retry": "Retry",
+  "model_settings": "Model Settings",
+  "file_upload": "File Upload",
+  "file_upload_description": "Allow file uploads for conversation",
+  "internet_access": "Internet Access",
+  "internet_access_description": "Allow AI to access the internet for latest information",
+  "role_prompt": "Role Prompt",
+  "role_prompt_description": "Customize AI character behavior and response style",
+  "click_or_drag_to_upload": "Click or drag to upload",
+  "remove": "Remove",
+  "file_type_error": "Only image files and PDFs are allowed",
+  "ready_button": "Ready!",
+  "edit_prompt": "Edit Prompt",
+  "uploading": "Uploading",
+  "upload_failed": "Upload failed, please try again."
 }
