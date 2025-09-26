@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/client/aliyun"
 	"github.com/justin/echome-be/internal/domain"
+	"golang.org/x/sync/errgroup"
 )
 
 // Constants 定义常量
@@ -148,7 +149,6 @@ func (s *ConversationService) handleStreamingConversation(
 	_ = sc.WriteJSON(map[string]any{"type": "stream_start", "timestamp": time.Now()})
 
 	var fullResponse strings.Builder
-	var ttsBuffer strings.Builder
 
 	characterContext := ""
 	var voiceProfile *domain.VoiceProfile
@@ -157,65 +157,70 @@ func (s *ConversationService) handleStreamingConversation(
 		voiceProfile = character.VoiceConfig
 	}
 
-	ttsChan := make(chan string)
-	go s.processTTSQueue(ctx, sc, voiceProfile, ttsChan)
+	// Channel for LLM text chunks
+	llmTextChan := make(chan string, 100) // Buffered channel
 
-	onChunk := func(chunk string) error {
-		fullResponse.WriteString(chunk)
-		_ = sc.WriteJSON(map[string]any{
-			"type":      "stream_chunk",
-			"content":   chunk,
-			"timestamp": time.Now(),
-		})
+	// Configure TTS
+	ttsConfig := aliyun.DefaultTTSConfig()
+	if voiceProfile != nil {
+		ttsConfig.Voice = voiceProfile.Voice
+	}
 
-		ttsBuffer.WriteString(chunk)
-		text := ttsBuffer.String()
-		shouldTTS := len(text) >= TTSMinLength || (len(text) > 0 && strings.ContainsAny(text[len(text)-1:], TTSPunctuation))
+	g, conversationCtx := errgroup.WithContext(ctx)
 
-		if shouldTTS {
-			ttsChan <- text
-			ttsBuffer.Reset()
+	// Goroutine 1: Handle TTS streaming
+	g.Go(func() error {
+		// Note: We are passing the conversationCtx which can be canceled by the errgroup.
+		return s.aiService.HandleCosyVoiceTTS(conversationCtx, sc, llmTextChan, ttsConfig)
+	})
+
+	// Goroutine 2: Generate LLM response and send to channel
+	g.Go(func() error {
+		defer close(llmTextChan) // Close channel when LLM stream ends
+
+		onChunk := func(chunk string) error {
+			if chunk != "" {
+				fullResponse.WriteString(chunk)
+				// Send text chunk to client for display
+				if err := sc.WriteJSON(map[string]any{
+					"type":      "stream_chunk",
+					"content":   chunk,
+					"timestamp": time.Now(),
+				}); err != nil {
+					return err // Stop if we can't write to client
+				}
+
+				// Send chunk to TTS channel
+				select {
+				case llmTextChan <- chunk:
+				case <-conversationCtx.Done():
+					return conversationCtx.Err()
+				}
+			}
+			return nil
 		}
-		return nil
+
+		return s.aiService.GenerateStreamResponse(conversationCtx, userInput, characterContext, conversationHistory, onChunk)
+	})
+
+	// Wait for both goroutines to finish
+	if err := g.Wait(); err != nil {
+		// Don't return error on context cancellation, as it's an expected way to stop.
+		if err != context.Canceled {
+			s.logger.Printf("流式对话处理失败: %v", err)
+			_ = sc.WriteJSON(map[string]any{
+				"type":    "error",
+				"message": "流式响应处理失败: " + err.Error(),
+			})
+			return err
+		}
 	}
 
-	if err := s.aiService.GenerateStreamResponse(ctx, userInput, characterContext, conversationHistory, onChunk); err != nil {
-		close(ttsChan)
-		return WrapError(ErrCodeAIGenerationFailed, "生成流式AI响应失败", err)
-	}
-
-	if ttsBuffer.Len() > 0 {
-		ttsChan <- ttsBuffer.String()
-	}
-
-	close(ttsChan)
+	// Send stream end message
 	_ = sc.WriteJSON(map[string]any{
 		"type":      "stream_end",
 		"response":  fullResponse.String(),
 		"timestamp": time.Now(),
 	})
 	return nil
-}
-
-// processTTSQueue 处理 TTS 队列
-func (s *ConversationService) processTTSQueue(
-	ctx context.Context,
-	sc domain.WebSocketConn,
-	voiceProfile *domain.VoiceProfile,
-	ttsChan <-chan string,
-) {
-	for toSpeak := range ttsChan {
-		cfg := aliyun.DefaultTTSConfig()
-		if voiceProfile != nil {
-			cfg.Voice = voiceProfile.Voice
-		}
-		// 假设 HandleTTS 需要 text 参数
-		if err := s.aiService.HandleTTS(ctx, sc, toSpeak, cfg); err != nil {
-			s.logger.Printf("TTS处理失败 (文本: %q): %v", toSpeak, err)
-			_ = sc.WriteJSON(map[string]any{
-				"type":    "tts_error",
-				"message": "TTS 处理失败",
-			})
-		}
-	}
 }

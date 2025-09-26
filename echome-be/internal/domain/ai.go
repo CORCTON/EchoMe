@@ -16,6 +16,9 @@ type AIService interface {
 	// @param config TTS配置参数
 	HandleTTS(ctx context.Context, clientWS WebSocketConn, text string, config TTSConfig) error
 
+	// HandleCosyVoiceTTS handles the TTS WebSocket connection using CosyVoice streaming API.
+	HandleCosyVoiceTTS(ctx context.Context, clientWS WebSocketConn, textStream <-chan string, config TTSConfig) error
+
 	// GenerateResponse 生成AI响应
 	// @param ctx 上下文
 	// @param userInput 用户输入

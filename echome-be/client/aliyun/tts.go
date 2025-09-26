@@ -3,7 +3,6 @@ package aliyun
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,61 +11,83 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/justin/echome-be/internal/domain"
+	"log"
+
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
 // DefaultTTSConfig 提供默认 TTS 配置
 func DefaultTTSConfig() domain.TTSConfig {
 	return domain.TTSConfig{
-		Model:          "qwen3-tts-flash-realtime",
-		Voice:          "Katerina",
-		Mode:           "server_commit",
-		Format:         "pcm",
+		Model: "cosyvoice-v2",
+		Voice: "longxiaochun_v2",
+		// Mode:           "server_commit",
+		Format: "pcm",
 	}
 }
 
 // HandleTTS 处理 TTS 请求，直接使用传入的文本
 func (client *AliClient) HandleTTS(ctx context.Context, clientWS domain.WebSocketConn, text string, config domain.TTSConfig) error {
-	aliWS, err := connectToAliyunTTS(client.apiKey, client.endPoint, config.Model)
+	textCh := make(chan string, 1)
+	textCh <- text
+	close(textCh)
+	return client.HandleCosyVoiceTTS(ctx, clientWS, textCh, config)
+}
+
+func (client *AliClient) HandleCosyVoiceTTS(ctx context.Context, clientWS domain.WebSocketConn, textStream <-chan string, config domain.TTSConfig) error {
+	aliWS, err := connectToAliyunTTS(client.apiKey)
 	if err != nil {
 		return fmt.Errorf("连接阿里云 TTS 失败: %w", err)
 	}
 	defer aliWS.Close()
 
-	// 初始化会话配置
-	if err := updateTTSSession(aliWS, config); err != nil {
-		return fmt.Errorf("更新 TTS 会话失败: %w", err)
-	}
-
+	taskID := uuid.NewString()
+	taskStarted := make(chan struct{})
 	g, ctx := errgroup.WithContext(ctx)
 
-	// 发送文本到阿里云
+	// 1. 从阿里云读取消息并转发
 	g.Go(func() error {
-		defer func() {
-			if err := sendEvent(aliWS, "session.finish", nil); err != nil {
-				fmt.Printf("发送 session.finish 事件失败: %v\n", err)
+		return handleAliyunToClient(ctx, aliWS, clientWS, taskStarted)
+	})
+
+	// 2. 发送指令到阿里云
+	g.Go(func() error {
+		// 等待 task-started 事件
+		select {
+		case <-taskStarted:
+			// 收到事件，继续执行
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Second):
+			return fmt.Errorf("等待 task-started 超时")
+		}
+
+		// 循环发送文本
+		for text := range textStream {
+			if err := sendContinueTask(aliWS, taskID, text); err != nil {
+				return fmt.Errorf("发送 continue-task 失败: %w", err)
 			}
-		}()
-		return sendTextToAliyun(aliWS, text, config)
+		}
+
+		// 所有文本发送完毕，发送 finish-task
+		if err := sendFinishTask(aliWS, taskID); err != nil {
+			return fmt.Errorf("发送 finish-task 失败: %w", err)
+		}
+		return nil
 	})
 
-	// 从阿里云读取音频并转发到客户端
-	g.Go(func() error {
-		return handleAliyunToClient(ctx, aliWS, clientWS)
-	})
-
-	// 心跳
-	g.Go(func() error {
-		return keepAlive(ctx, aliWS)
-	})
+	// 3. 发送 run-task 指令
+	if err := sendRunTask(aliWS, taskID, config); err != nil {
+		return fmt.Errorf("发送 run-task 失败: %w", err)
+	}
 
 	return g.Wait()
 }
 
 // connectToAliyunTTS 建立 WebSocket 连接
-func connectToAliyunTTS(apiKey, endpoint, model string) (*websocket.Conn, error) {
-	baseURL := strings.Replace(endpoint, "https://", "wss://", 1)
-	url := fmt.Sprintf("%s/api-ws/v1/realtime?model=%s", baseURL, model)
+func connectToAliyunTTS(apiKey string) (*websocket.Conn, error) {
+	url := "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 30 * time.Second,
@@ -77,6 +98,7 @@ func connectToAliyunTTS(apiKey, endpoint, model string) (*websocket.Conn, error)
 
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+apiKey)
+	headers.Add("X-DashScope-DataInspection", "enable")
 
 	ws, resp, err := dialer.Dial(url, headers)
 	if err != nil {
@@ -86,153 +108,124 @@ func connectToAliyunTTS(apiKey, endpoint, model string) (*websocket.Conn, error)
 		return nil, fmt.Errorf("连接失败: %v", err)
 	}
 
-	ws.SetPongHandler(func(string) error { return nil })
 	return ws, nil
 }
 
-// keepAlive 定时发送心跳
-func keepAlive(ctx context.Context, ws *websocket.Conn) error {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if err := ws.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
-				return fmt.Errorf("发送心跳失败: %w", err)
-			}
-		}
-	}
-}
-
-// updateTTSSession 初始化 TTS 会话配置
-func updateTTSSession(aliWS *websocket.Conn, config domain.TTSConfig) error {
-	if config.Model == "cosyvoice-v2" {
-		sessionUpdate := map[string]interface{}{
-			"header": map[string]interface{}{
-				"action":   "run-task",
-				"task_id":  fmt.Sprintf("task_%d", time.Now().UnixNano()),
-				"streaming": "duplex",
+// sendRunTask 发送开启任务指令
+func sendRunTask(ws *websocket.Conn, taskID string, config domain.TTSConfig) error {
+	cmd := map[string]interface{}{
+		"header": map[string]interface{}{
+			"action":    "run-task",
+			"task_id":   taskID,
+			"streaming": "duplex",
+		},
+		"payload": map[string]interface{}{
+			"task_group": "audio",
+			"task":       "tts",
+			"function":   "SpeechSynthesizer",
+			"model":      config.Model,
+			"parameters": map[string]interface{}{
+				"text_type":   "PlainText",
+				"voice":       config.Voice,
+				"format":      config.Format,
+				"sample_rate": 22050,
 			},
-			"payload": map[string]interface{}{
-				"task_group": "audio",
-				"task":       "tts",
-				"function":   "SpeechSynthesizer",
-				"model":      config.Model,
-				"parameters": map[string]interface{}{
-					"text_type": "PlainText",
-					"voice":     config.Voice,
-					"format":    config.Format,
-				},
-				"input": map[string]interface{}{},
-			},
-		}
-		return aliWS.WriteJSON(sessionUpdate)
-	}
-
-	sessionUpdate := map[string]interface{}{
-		"type": "session.update",
-		"session": map[string]any{
-			"mode":           config.Mode,
-			"voice":          config.Voice,
-			"language_type":  "Auto",
-			"language_hints": config.Lang,
-			"format":         config.Format,
+			"input": map[string]interface{}{},
 		},
 	}
-	return aliWS.WriteJSON(sessionUpdate)
+	return ws.WriteJSON(cmd)
 }
 
-// sendEvent 统一发送事件
-func sendEvent(aliWS *websocket.Conn, eventType string, data map[string]interface{}) error {
-	event := map[string]any{
-		"type":     eventType,
-		"event_id": fmt.Sprintf("event_%d", time.Now().UnixMilli()),
-	}
-	for k, v := range data {
-		event[k] = v
-	}
-	return aliWS.WriteJSON(event)
-}
-
-// sendTextToAliyun 发送文本到阿里云 TTS
-func sendTextToAliyun(aliWS *websocket.Conn, text string, config domain.TTSConfig) error {
-	if config.Model == "cosyvoice-v2" {
-		event := map[string]interface{}{
-			"header": map[string]interface{}{
-				"action":   "run-task",
-				"task_id":  fmt.Sprintf("task_%d", time.Now().UnixNano()),
-				"streaming": "duplex",
+// sendContinueTask 发送待合成文本
+func sendContinueTask(ws *websocket.Conn, taskID, text string) error {
+	cmd := map[string]interface{}{
+		"header": map[string]interface{}{
+			"action":    "continue-task",
+			"task_id":   taskID,
+			"streaming": "duplex",
+		},
+		"payload": map[string]interface{}{
+			"input": map[string]interface{}{
+				"text": text,
 			},
-			"payload": map[string]interface{}{
-				"task_group": "audio",
-				"task":       "tts",
-				"function":   "SpeechSynthesizer",
-				"model":      config.Model,
-				"parameters": map[string]interface{}{
-					"text_type": "PlainText",
-					"voice":     config.Voice,
-					"format":    config.Format,
-				},
-				"input": map[string]interface{}{
-					"text": text,
-				},
-			},
-		}
-		return aliWS.WriteJSON(event)
+		},
 	}
-
-	if err := sendEvent(aliWS, "input_text_buffer.append", map[string]interface{}{
-		"text": text,
-	}); err != nil {
-		return fmt.Errorf("发送文本失败: %w", err)
-	}
-	if config.Mode == "commit" || config.Mode == "server_commit" {
-		return sendEvent(aliWS, "input_text_buffer.commit", nil)
-	}
-	return nil
+	return ws.WriteJSON(cmd)
 }
 
-// handleAliyunToClient 从阿里云读取音频并转发
-func handleAliyunToClient(ctx context.Context, aliWS *websocket.Conn, writer domain.WebSocketConn) error {
+// sendFinishTask 发送结束任务指令
+func sendFinishTask(ws *websocket.Conn, taskID string) error {
+	cmd := map[string]interface{}{
+		"header": map[string]interface{}{
+			"action":    "finish-task",
+			"task_id":   taskID,
+			"streaming": "duplex",
+		},
+		"payload": map[string]interface{}{
+			"input": map[string]interface{}{},
+		},
+	}
+	return ws.WriteJSON(cmd)
+}
+
+// handleAliyunToClient 从阿里云读取消息并转发
+func handleAliyunToClient(ctx context.Context, aliWS *websocket.Conn, writer domain.WebSocketConn, taskStarted chan<- struct{}) error {
+	defer close(taskStarted)
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			_, msg, err := aliWS.ReadMessage()
+			msgType, msg, err := aliWS.ReadMessage()
 			if err != nil {
-				return nil
+				// 正常关闭或上下文取消时，返回 nil
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure) || strings.Contains(err.Error(), "context canceled") {
+					return nil
+				}
+				return fmt.Errorf("读取阿里云消息失败: %w", err)
 			}
-			var resp map[string]interface{}
-			if err := json.Unmarshal(msg, &resp); err != nil {
+
+			if msgType == websocket.BinaryMessage {
+				if err := writer.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+					return fmt.Errorf("转发音频失败: %w", err)
+				}
 				continue
 			}
 
-			switch resp["type"] {
-			case "response.audio.delta", "response.audio":
-				var audioData string
-				if delta, ok := resp["delta"].(string); ok && delta != "" {
-					audioData = delta
-				} else if audio, ok := resp["audio"].(string); ok && audio != "" {
-					audioData = audio
-				} else if data, ok := resp["data"].(string); ok && data != "" {
-					audioData = data
+			if msgType != websocket.TextMessage {
+				continue
+			}
+
+			var resp map[string]interface{}
+			if err := json.Unmarshal(msg, &resp); err != nil {
+				log.Printf("解析阿里云 JSON 失败: %v", err)
+				continue
+			}
+
+			header, ok := resp["header"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			event, ok := header["event"].(string)
+			if !ok {
+				continue
+			}
+
+			switch event {
+			case "task-started":
+				select {
+				case taskStarted <- struct{}{}:
+				default:
 				}
-				if audioData != "" {
-					audioBytes, err := base64.StdEncoding.DecodeString(audioData)
-					if err != nil {
-						continue
-					}
-					if err := writer.WriteMessage(websocket.BinaryMessage, audioBytes); err != nil {
-						return fmt.Errorf("写入音频失败: %w", err)
-					}
-				}
-			case "session.finished":
+			case "task-finished":
+				log.Println("阿里云 TTS 任务完成")
 				return nil
-			case "error":
-				return fmt.Errorf("TTS错误: %v", resp)
+			case "task-failed":
+				errMsg, _ := header["error_message"].(string)
+				return fmt.Errorf("阿里云 TTS 任务失败: %s", errMsg)
+			case "result-generated":
+				// 忽略
 			}
 		}
 	}
