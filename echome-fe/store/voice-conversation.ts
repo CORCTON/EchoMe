@@ -140,21 +140,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
         if (history.length > 0 && lastMessage?.role === "user" && characterId) {
           const { currentCharacter } = useCharacterStore.getState();
           
-          const userMessages = history.filter(msg => msg.role === 'user');
-          const isFirstUserMessage = userMessages.length === 1;
-
           const messages = [...history];
-          if (isFirstUserMessage && files.length > 0) {
-            const firstUserMessage = messages.find(msg => msg.role === 'user');
-            if (firstUserMessage && typeof firstUserMessage.content === 'string') {
-              const imageContent: ImageContent[] = files.map(file => ({
-                type: 'image_url',
-                image_url: { url: file.url },
-              }));
-              const textContent: TextContent = { type: 'text', text: firstUserMessage.content };
-              firstUserMessage.content = [...imageContent, textContent];
-            }
-          }
 
           const systemPrompt = {
             role: "system" as const,
@@ -332,10 +318,22 @@ export const useVoiceConversation = create<VoiceConversationState>(
                   image_url: { url: file.url },
                 }));
                 const textContent: TextContent = { type: 'text', text: firstUserMessage.content };
+                const newContent = [...imageContent, textContent];
+                
                 finalPayload.messages[firstUserMessageIndex] = {
                   ...firstUserMessage,
-                  content: [...imageContent, textContent],
+                  content: newContent,
                 };
+
+                // Also update the history in the store
+                set(state => {
+                  const newHistory = [...state.history];
+                  const messageToUpdate = newHistory.find(msg => msg.role === 'user' && msg.content === firstUserMessage.content);
+                  if (messageToUpdate) {
+                    messageToUpdate.content = newContent;
+                  }
+                  return { history: newHistory };
+                });
               }
             }
           }
