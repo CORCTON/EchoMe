@@ -124,7 +124,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
       newWs.onopen = () => {
         set({ connection: "connected", ws: newWs });
 
-        const { onConnectCallbacks, history, characterId, start, files } = get();
+        const { onConnectCallbacks, history, characterId, start } = get();
 
         if (onConnectCallbacks.length > 0) {
           for (const cb of onConnectCallbacks) {
@@ -139,7 +139,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
         // 如果是重连，并且最后一条消息是用户发的，就自动重试
         if (history.length > 0 && lastMessage?.role === "user" && characterId) {
           const { currentCharacter } = useCharacterStore.getState();
-          
+
           const messages = [...history];
 
           const systemPrompt = {
@@ -167,7 +167,10 @@ export const useVoiceConversation = create<VoiceConversationState>(
               set((s) => {
                 const history = [...s.history];
                 const last = history[history.length - 1];
-                if (last?.role === "assistant" && typeof last.content === 'string') {
+                if (
+                  last?.role === "assistant" &&
+                  typeof last.content === "string"
+                ) {
                   history[history.length - 1] = {
                     role: "assistant",
                     content: last.content + message.content,
@@ -182,7 +185,10 @@ export const useVoiceConversation = create<VoiceConversationState>(
               set((s) => {
                 const history = [...s.history];
                 const last = history[history.length - 1];
-                if (last?.role === "assistant" && typeof last.content === 'string') {
+                if (
+                  last?.role === "assistant" &&
+                  typeof last.content === "string"
+                ) {
                   history[history.length - 1] = {
                     role: "assistant",
                     content: message.response,
@@ -218,9 +224,8 @@ export const useVoiceConversation = create<VoiceConversationState>(
           source.connect(gainNode);
 
           const now = audioCtx.currentTime;
-          const startAt = nextStartTime && nextStartTime > now
-            ? nextStartTime
-            : now;
+          const startAt =
+            nextStartTime && nextStartTime > now ? nextStartTime : now;
 
           if (!isPlaying) {
             set({ echoGuardUntil: Date.now() + 300 });
@@ -291,12 +296,12 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
           const { modelSettings } = useCharacterStore.getState();
           const { messages } = payload;
-          
-          const finalPayload: { 
+
+          const finalPayload: {
             messages: ChatMessage[];
             stream: boolean;
             enable_search?: boolean;
-          } = { 
+          } = {
             messages,
             stream: true,
           };
@@ -305,30 +310,42 @@ export const useVoiceConversation = create<VoiceConversationState>(
             finalPayload.enable_search = true;
           }
 
-          const userMessages = finalPayload.messages.filter(msg => msg.role === 'user');
+          const userMessages = finalPayload.messages.filter(
+            (msg) => msg.role === "user",
+          );
           const isFirstUserMessage = userMessages.length === 1;
-          
+
           if (isFirstUserMessage && files.length > 0) {
-            const firstUserMessageIndex = finalPayload.messages.findIndex(msg => msg.role === 'user');
+            const firstUserMessageIndex = finalPayload.messages.findIndex(
+              (msg) => msg.role === "user",
+            );
             if (firstUserMessageIndex !== -1) {
-              const firstUserMessage = finalPayload.messages[firstUserMessageIndex];
-              if (typeof firstUserMessage.content === 'string') {
-                const imageContent: ImageContent[] = files.map(file => ({
-                  type: 'image_url',
+              const firstUserMessage =
+                finalPayload.messages[firstUserMessageIndex];
+              if (typeof firstUserMessage.content === "string") {
+                const imageContent: ImageContent[] = files.map((file) => ({
+                  type: "image_url",
                   image_url: { url: file.url },
                 }));
-                const textContent: TextContent = { type: 'text', text: firstUserMessage.content };
+                const textContent: TextContent = {
+                  type: "text",
+                  text: firstUserMessage.content,
+                };
                 const newContent = [...imageContent, textContent];
-                
+
                 finalPayload.messages[firstUserMessageIndex] = {
                   ...firstUserMessage,
                   content: newContent,
                 };
 
                 // Also update the history in the store
-                set(state => {
+                set((state) => {
                   const newHistory = [...state.history];
-                  const messageToUpdate = newHistory.find(msg => msg.role === 'user' && msg.content === firstUserMessage.content);
+                  const messageToUpdate = newHistory.find(
+                    (msg) =>
+                      msg.role === "user" &&
+                      msg.content === firstUserMessage.content,
+                  );
                   if (messageToUpdate) {
                     messageToUpdate.content = newContent;
                   }
@@ -337,7 +354,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
               }
             }
           }
-          
+
           currentWs.send(JSON.stringify(finalPayload));
         } else {
           console.error("Failed to send message even after connect callback.");
@@ -358,7 +375,9 @@ export const useVoiceConversation = create<VoiceConversationState>(
           if (characterId) {
             connect(characterId);
           } else {
-            console.error("Cannot connect: characterId is missing from the store.");
+            console.error(
+              "Cannot connect: characterId is missing from the store.",
+            );
           }
         }
       }

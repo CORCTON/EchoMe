@@ -54,7 +54,7 @@ export function ModelSettingsDrawer({
 
   useEffect(() => {
     const checkIsDesktop = () => {
-      setIsDesktop(window.innerWidth >= 640); 
+      setIsDesktop(window.innerWidth >= 640);
     };
 
     checkIsDesktop();
@@ -64,22 +64,20 @@ export function ModelSettingsDrawer({
   }, []);
 
   useEffect(() => {
-
     const defaultSettings = {
       internetAccess: false,
       rolePrompt: character.prompt,
       fileUrls: [],
     };
-    
+
     setSettings({
       internetAccess: defaultSettings.internetAccess,
       rolePrompt: defaultSettings.rolePrompt,
     });
-    
+
     updateModelSettings(defaultSettings);
     clearFiles();
     setIsEditingPrompt(false);
-    
   }, [character, clearFiles, updateModelSettings]);
 
   const handleReady = () => {
@@ -107,9 +105,11 @@ export function ModelSettingsDrawer({
       setBackgroundColorOnScale={false}
     >
       <DrawerContent
-        className={isDesktop
-          ? "h-full w-96 max-w-96 flex flex-col"
-          : "h-[90vh] w-full flex flex-col"}
+        className={
+          isDesktop
+            ? "h-full w-96 max-w-96 flex flex-col"
+            : "h-[90vh] w-full flex flex-col"
+        }
       >
         <DrawerHeader className="flex flex-row items-start justify-between pb-4">
           <div className="flex flex-col items-start">
@@ -119,7 +119,12 @@ export function ModelSettingsDrawer({
           </div>
           <div className="ml-3 flex-shrink-0">
             <DrawerClose asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onOpenChange(false)}
+              >
                 <X className="h-4 w-4" />
               </Button>
             </DrawerClose>
@@ -156,7 +161,8 @@ export function ModelSettingsDrawer({
               <Switch
                 checked={settings.internetAccess}
                 onCheckedChange={(checked) =>
-                  setSettings((prev) => ({ ...prev, internetAccess: checked }))}
+                  setSettings((prev) => ({ ...prev, internetAccess: checked }))
+                }
               />
             </div>
           </div>
@@ -183,24 +189,23 @@ export function ModelSettingsDrawer({
               </Button>
             </div>
 
-            {isEditingPrompt
-              ? (
-                <Textarea
-                  value={settings.rolePrompt}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      rolePrompt: e.target.value,
-                    }))}
-                  placeholder={character.prompt}
-                  className="min-h-[120px] resize-none"
-                />
-              )
-              : (
-                <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
-                  {settings.rolePrompt}
-                </div>
-              )}
+            {isEditingPrompt ? (
+              <Textarea
+                value={settings.rolePrompt}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    rolePrompt: e.target.value,
+                  }))
+                }
+                placeholder={character.prompt}
+                className="min-h-[120px] resize-none"
+              />
+            ) : (
+              <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground">
+                {settings.rolePrompt}
+              </div>
+            )}
           </div>
         </div>
 

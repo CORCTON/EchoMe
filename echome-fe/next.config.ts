@@ -3,8 +3,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 const CopyPlugin = require("copy-webpack-plugin");
 
 // 阿里云 oss 配置
-const ossUrl =
-  `${process.env.OSS_BUCKET}.${process.env.OSS_REGION}.aliyuncs.com`;
+const ossUrl = `${process.env.OSS_BUCKET}.${process.env.OSS_REGION}.aliyuncs.com`;
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -41,8 +40,7 @@ const nextConfig: NextConfig = {
             to: "../public/vad/[name][ext]",
           },
           {
-            from:
-              "node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js",
+            from: "node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js",
             to: "../public/vad/[name][ext]",
           },
           {
