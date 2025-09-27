@@ -63,7 +63,6 @@ export const useVadStore = create(
         positiveSpeechThreshold: 0.9, // 语音检测阈值
         negativeSpeechThreshold: 0.5, // 静音检测阈值
         minSpeechMs: 300, // 最小语音长度
-        redemptionMs: 750, // 等待静音时间
 
         // 语音开始：检查 echo guard，打断当前播放，合并并发送预缓冲数据
         onSpeechStart: () => {
