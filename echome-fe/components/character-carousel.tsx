@@ -1,17 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import Image from "next/image";
-import { useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { VoiceCharacter } from "@/lib/characters";
+import { ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
+import type { Character } from "@/types/character";
 
 interface CharacterCarouselProps {
-  characters: VoiceCharacter[];
-  onCharacterSelect: (character: VoiceCharacter) => void;
-  selectedCharacter: VoiceCharacter;
+  characters: Character[];
+  onCharacterSelect: (character: Character) => void;
+  selectedCharacter: Character;
 }
 
 export function CharacterCarousel({
@@ -19,10 +18,12 @@ export function CharacterCarousel({
   onCharacterSelect,
   selectedCharacter,
 }: CharacterCarouselProps) {
-  const locale = useLocale();
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
-    loop: true,
+    loop: characters.length > 1,
     align: "center",
     skipSnaps: false,
     dragFree: false,
@@ -102,23 +103,38 @@ export function CharacterCarousel({
     if (currentIndex !== -1 && currentIndex !== emblaApi.selectedScrollSnap()) {
       emblaApi.scrollTo(currentIndex);
     }
-  }, [emblaApi, characters, selectedCharacter.id]);
+    if (audioRef.current) {
+      const voiceSrc = (selectedCharacter.audio_example || "").trim();
+      audioRef.current.src = voiceSrc !== "null" ? voiceSrc : "";
+    }
+  }, [emblaApi, characters, selectedCharacter]);
 
   return (
     <div className="relative w-full max-w-[90vw] mx-auto px-[2vw] sm:px-[3vw]">
       {/* 轮播容器 - 使用 vh 单位 */}
       <div className=" h-[50vh] sm:h-[45vh] md:h-[40vh]" ref={emblaRef}>
-        <div className="flex h-full">
+        <div
+          className={`flex h-full ${
+            characters.length < 3 ? "justify-center" : ""
+          }`}
+        >
           {characters.map((character, index) => {
             const isSelected = character.id === selectedCharacter.id;
+            const voiceSrc = (character.audio_example || "").trim();
+            const hasValidVoice = voiceSrc && voiceSrc !== "null";
+
             return (
               <div
                 key={character.id}
-                className="flex-[0_0_100%] sm:flex-[0_0_50%] md:flex-[0_0_33.333%] min-w-0 px-[1vw] sm:px-[2vw] h-full"
+                className={`flex-[0_0_100%] ${
+                  characters.length > 1
+                    ? "sm:flex-[0_0_50%] md:flex-[0_0_33.333%]"
+                    : ""
+                } min-w-0 px-[1vw] sm:px-[2vw] h-full`}
               >
                 <div className="flex flex-col items-center justify-start h-full">
                   {/* 角色图像容器 - 使用 vw/vh 单位 */}
-                  <div className="flex items-center justify-center h-[35vh] sm:h-[32vh] md:h-[30vh] mb-[2vh]">
+                  <div className="relative flex items-center justify-center h-[35vh] sm:h-[32vh] md:h-[30vh] mb-[2vh]">
                     <button
                       type="button"
                       className={`relative rounded-full overflow-hidden border-4 shadow-2xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400 transition-all duration-500 ${
@@ -139,16 +155,45 @@ export function CharacterCarousel({
                       }}
                       aria-label={`Select ${character.name}`}
                     >
-                      <Image
-                        src={character.image}
-                        alt={character.name}
-                        className="w-full h-full object-cover transition-all duration-500"
-                        width={256}
-                        height={256}
-                        priority={isSelected}
-                      />
+                      {character.avatar ? (
+                        <Image
+                          src={character.avatar}
+                          alt={character.name}
+                          className="w-full h-full object-cover transition-all duration-500"
+                          width={256}
+                          height={256}
+                          priority={isSelected}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-slate-200 dark:bg-slate-700" />
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                     </button>
+                    {hasValidVoice && isSelected && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (playingId === character.id) {
+                              audioRef.current?.pause();
+                            } else {
+                              if (audioRef.current?.src) {
+                                audioRef.current.play();
+                                setPlayingId(character.id);
+                              }
+                            }
+                          }}
+                          className="p-2 bg-black/50 rounded-full text-white pointer-events-auto"
+                          aria-label={`Play voice for ${character.name}`}
+                        >
+                          {isPlaying && playingId === character.id ? (
+                            <Pause size={24} />
+                          ) : (
+                            <Play size={24} />
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* 角色信息 - 使用 vh 单位 */}
@@ -169,7 +214,7 @@ export function CharacterCarousel({
                           : "text-transparent opacity-0"
                       }`}
                     >
-                      {character.description[locale]}
+                      {character.description}
                     </p>
                   </div>
                 </div>
@@ -178,49 +223,75 @@ export function CharacterCarousel({
           })}
         </div>
       </div>
+      <audio
+        ref={audioRef}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => {
+          setIsPlaying(false);
+          setPlayingId(null);
+        }}
+        onEnded={() => {
+          setIsPlaying(false);
+          setPlayingId(null);
+        }}
+        preload="auto"
+      >
+        <track
+          kind="captions"
+          src="data:text/vtt;base64,V0VCVlRUDQo="
+          srcLang="en"
+          label="English captions"
+        />
+      </audio>
 
       {/* 导航按钮 - 使用 vw/vh 单位定位 */}
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={scrollPrev}
-        className="cursor-pointer absolute left-[2vw] sm:left-[3vw] md:left-4 top-[15vh] sm:top-[12vh] md:top-1/2 md:-translate-y-1/2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 z-10 shadow-lg"
-        style={{
-          width: "min(8vw, 40px)",
-          height: "min(8vw, 40px)",
-        }}
-      >
-        <ChevronLeft size={16} className="sm:w-5 sm:h-5" />
-      </Button>
+      {characters.length > 1 && (
+        <>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={scrollPrev}
+            className="cursor-pointer absolute left-[2vw] sm:left-[3vw] md:left-4 top-[15vh] sm:top-[12vh] md:top-1/2 md:-translate-y-1/2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 z-10 shadow-lg"
+            style={{
+              width: "min(8vw, 40px)",
+              height: "min(8vw, 40px)",
+            }}
+          >
+            <ChevronLeft size={16} className="sm:w-5 sm:h-5" />
+          </Button>
 
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={scrollNext}
-        className="cursor-pointer  absolute right-[2vw] sm:right-[3vw] md:right-4 top-[15vh] sm:top-[12vh] md:top-1/2 md:-translate-y-1/2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 z-10 shadow-lg"
-        style={{
-          width: "min(8vw, 40px)",
-          height: "min(8vw, 40px)",
-        }}
-      >
-        <ChevronRight size={16} className="sm:w-5 sm:h-5" />
-      </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={scrollNext}
+            className="cursor-pointer  absolute right-[2vw] sm:right-[3vw] md:right-4 top-[15vh] sm:top-[12vh] md:top-1/2 md:-translate-y-1/2 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 z-10 shadow-lg"
+            style={{
+              width: "min(8vw, 40px)",
+              height: "min(8vw, 40px)",
+            }}
+          >
+            <ChevronRight size={16} className="sm:w-5 sm:h-5" />
+          </Button>
+        </>
+      )}
 
       {/* 指示器 */}
-      <div className="flex justify-center space-x-2 mt-6">
-        {characters.map((character, index) => (
-          <Button
-            key={character.id}
-            variant="ghost"
-            onClick={() => scrollTo(index)}
-            className={`cursor-pointer h-2 rounded-full transition-all duration-300 p-0 hover:scale-110 ${
-              character.id === selectedCharacter.id
-                ? "bg-slate-800 dark:bg-slate-200 w-8"
-                : "bg-slate-400 dark:bg-slate-600 w-2 hover:bg-slate-500 dark:hover:bg-slate-500"
-            }`}
-          />
-        ))}
-      </div>
+      {characters.length > 1 && (
+        <div className="flex justify-center space-x-2 mt-6">
+          {characters.map((character, index) => (
+            <Button
+              key={character.id}
+              variant="ghost"
+              onClick={() => scrollTo(index)}
+              className={`cursor-pointer h-2 rounded-full transition-all duration-300 p-0 hover:scale-110 ${
+                character.id === selectedCharacter.id
+                  ? "bg-slate-800 dark:bg-slate-200 w-8"
+                  : "bg-slate-400 dark:bg-slate-600 w-2 hover:bg-slate-500 dark:hover:bg-slate-500"
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

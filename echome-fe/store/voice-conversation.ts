@@ -1,16 +1,30 @@
 "use client";
 import { create } from "zustand";
+import { useCharacterStore } from "./character";
+import type { FileObject } from "./file";
 
 type Role = "system" | "user" | "assistant";
 
+export type ImageContent = {
+  type: "image_url";
+  image_url: { url: string };
+};
+
+export type TextContent = {
+  type: "text";
+  text: string;
+};
+
+export type MessageContent = string | (ImageContent | TextContent)[];
+
 export type ChatMessage = {
   role: Role;
-  content: string;
+  content: MessageContent;
 };
 
 export type ConversationRequest = {
-  characterId: string;
   messages: ChatMessage[];
+  enable_search?: boolean;
 };
 
 type ConnectionState = "idle" | "connecting" | "connected" | "disconnected";
@@ -20,6 +34,7 @@ export interface VoiceConversationState {
   ws: WebSocket | null;
   characterId: string | null;
   history: ChatMessage[];
+  files: FileObject[];
   audioCtx: AudioContext | null;
   gainNode: GainNode | null;
   isPlaying: boolean;
@@ -39,6 +54,7 @@ export interface VoiceConversationState {
   stopPlaying: () => void;
   clear: () => void;
   resumeAudio: () => void;
+  setFiles: (files: FileObject[]) => void;
   deleteMessage: (index: number) => void;
   editMessage: (index: number, newContent: string, truncate?: boolean) => void;
   retryLastAssistantMessage: () => void;
@@ -65,6 +81,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
     ws: null,
     characterId: null,
     history: [],
+    files: [],
     audioCtx: null,
     gainNode: null,
     isPlaying: false,
@@ -79,8 +96,18 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
     // 建立或重用 WebSocket 连接
     connect: (characterId: string) => {
-      const { ws, reconnectTimer } = get();
-      if (ws && ws.readyState < 2) return;
+      const { ws, reconnectTimer, characterId: currentCharacterId } = get();
+
+      // 如果存在一个活动的 ws 连接
+      if (ws && ws.readyState < 2) {
+        // 如果 characterId 相同，则无需操作
+        if (characterId === currentCharacterId) {
+          return;
+        }
+        ws.onclose = null; // 防止触发重连逻辑
+        ws.close();
+      }
+
       if (reconnectTimer) clearTimeout(reconnectTimer);
 
       set({ connection: "connecting", characterId, reconnectTimer: null });
@@ -88,17 +115,18 @@ export const useVoiceConversation = create<VoiceConversationState>(
       const url = new URL(
         `${process.env.NEXT_PUBLIC_WS_URL}/ws/voice-conversation`,
       );
-      const newWs = new WebSocket(url);
+      // 将 characterId 放到 URL 查询参数中
+      if (characterId) url.searchParams.set("characterId", characterId);
+      const newWs = new WebSocket(url.toString());
 
       newWs.binaryType = "arraybuffer";
 
       newWs.onopen = () => {
         set({ connection: "connected", ws: newWs });
 
-        const { onConnectCallbacks, history, characterId, start } = get();
+        const { onConnectCallbacks, history, characterId, start, files } = get();
 
         if (onConnectCallbacks.length > 0) {
-          console.log(`Executing ${onConnectCallbacks.length} queued actions.`);
           for (const cb of onConnectCallbacks) {
             cb();
           }
@@ -110,19 +138,30 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
         // 如果是重连，并且最后一条消息是用户发的，就自动重试
         if (history.length > 0 && lastMessage?.role === "user" && characterId) {
-          console.log(
-            "Reconnected. The last message was from the user, automatically retrying.",
-          );
-          const { getCharacterById } = require("@/lib/characters");
-          const character = getCharacterById(characterId);
-          const messages = [
-            {
-              role: "system" as const,
-              content: character?.prompt || "You are a helpful assistant.",
-            },
-            ...history,
-          ];
-          start({ characterId, messages });
+          const { currentCharacter } = useCharacterStore.getState();
+          
+          const userMessages = history.filter(msg => msg.role === 'user');
+          const isFirstUserMessage = userMessages.length === 1;
+
+          const messages = [...history];
+          if (isFirstUserMessage && files.length > 0) {
+            const firstUserMessage = messages.find(msg => msg.role === 'user');
+            if (firstUserMessage && typeof firstUserMessage.content === 'string') {
+              const imageContent: ImageContent[] = files.map(file => ({
+                type: 'image_url',
+                image_url: { url: file.url },
+              }));
+              const textContent: TextContent = { type: 'text', text: firstUserMessage.content };
+              firstUserMessage.content = [...imageContent, textContent];
+            }
+          }
+
+          const systemPrompt = {
+            role: "system" as const,
+            content: currentCharacter?.prompt || "You are a helpful assistant.",
+          };
+
+          start({ messages: [systemPrompt, ...messages] });
         }
       };
 
@@ -142,10 +181,10 @@ export const useVoiceConversation = create<VoiceConversationState>(
               set((s) => {
                 const history = [...s.history];
                 const last = history[history.length - 1];
-                if (last?.role === "assistant") {
+                if (last?.role === "assistant" && typeof last.content === 'string') {
                   history[history.length - 1] = {
                     role: "assistant",
-                    content: (last.content ?? "") + message.content,
+                    content: last.content + message.content,
                   };
                 } else {
                   history.push({ role: "assistant", content: message.content });
@@ -157,7 +196,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
               set((s) => {
                 const history = [...s.history];
                 const last = history[history.length - 1];
-                if (last?.role === "assistant") {
+                if (last?.role === "assistant" && typeof last.content === 'string') {
                   history[history.length - 1] = {
                     role: "assistant",
                     content: message.response,
@@ -244,7 +283,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
         const { characterId: currentCharacterId } = get();
         if (currentCharacterId) {
           // 断线后尝试重连
-          console.log(
+          console.warn(
             "WebSocket connection lost, attempting to reconnect in 2s...",
           );
           const timer = setTimeout(() => {
@@ -257,13 +296,51 @@ export const useVoiceConversation = create<VoiceConversationState>(
 
     // 向服务器发送对话请求（开启流式）
     start: (payload: ConversationRequest) => {
-      const { ws, connection, connect, characterId } = get();
+      const { ws, connection, connect, characterId, files } = get();
 
       const sendMessage = () => {
         const { ws: currentWs } = get();
         if (currentWs && get().connection === "connected") {
           set({ isInterrupted: false, isResponding: true });
-          currentWs.send(JSON.stringify({ ...payload, stream: true }));
+
+          const { modelSettings } = useCharacterStore.getState();
+          const { messages } = payload;
+          
+          const finalPayload: { 
+            messages: ChatMessage[];
+            stream: boolean;
+            enable_search?: boolean;
+          } = { 
+            messages,
+            stream: true,
+          };
+
+          if (modelSettings.internetAccess) {
+            finalPayload.enable_search = true;
+          }
+
+          const userMessages = finalPayload.messages.filter(msg => msg.role === 'user');
+          const isFirstUserMessage = userMessages.length === 1;
+          
+          if (isFirstUserMessage && files.length > 0) {
+            const firstUserMessageIndex = finalPayload.messages.findIndex(msg => msg.role === 'user');
+            if (firstUserMessageIndex !== -1) {
+              const firstUserMessage = finalPayload.messages[firstUserMessageIndex];
+              if (typeof firstUserMessage.content === 'string') {
+                const imageContent: ImageContent[] = files.map(file => ({
+                  type: 'image_url',
+                  image_url: { url: file.url },
+                }));
+                const textContent: TextContent = { type: 'text', text: firstUserMessage.content };
+                finalPayload.messages[firstUserMessageIndex] = {
+                  ...firstUserMessage,
+                  content: [...imageContent, textContent],
+                };
+              }
+            }
+          }
+          
+          currentWs.send(JSON.stringify(finalPayload));
         } else {
           console.error("Failed to send message even after connect callback.");
         }
@@ -272,7 +349,7 @@ export const useVoiceConversation = create<VoiceConversationState>(
       if (ws && connection === "connected") {
         sendMessage();
       } else {
-        console.log(
+        console.warn(
           "WebSocket not connected. Queuing message and attempting to connect.",
         );
         set((state) => ({
@@ -280,11 +357,10 @@ export const useVoiceConversation = create<VoiceConversationState>(
         }));
 
         if (connection !== "connecting") {
-          const charId = characterId || payload.characterId;
-          if (charId) {
-            connect(charId);
+          if (characterId) {
+            connect(characterId);
           } else {
-            console.error("Cannot connect: characterId is missing.");
+            console.error("Cannot connect: characterId is missing from the store.");
           }
         }
       }
@@ -328,12 +404,10 @@ export const useVoiceConversation = create<VoiceConversationState>(
       }
 
       if (ws && ws.readyState < 2) {
-        // Disable the onclose handler to prevent auto-reconnect for this intentional close
         ws.onclose = null;
         ws.close();
       }
 
-      // Reset state and immediately start a new connection in the background
       set({
         isInterrupted: true,
         ws: null,
@@ -342,7 +416,6 @@ export const useVoiceConversation = create<VoiceConversationState>(
       });
 
       if (characterId) {
-        console.log("Interrupted. Pre-emptively creating a new connection.");
         connect(characterId);
       }
     },
@@ -371,10 +444,13 @@ export const useVoiceConversation = create<VoiceConversationState>(
         connection: "idle",
         idleTimer: null,
         history: [],
+        files: [],
       });
     },
 
-    clear: () => set({ history: [] }),
+    clear: () => set({ history: [], files: [] }),
+
+    setFiles: (files: FileObject[]) => set({ files }),
 
     // 恢复或创建 AudioContext
     resumeAudio: () => {
@@ -432,7 +508,18 @@ export const useVoiceConversation = create<VoiceConversationState>(
         ) {
           return state;
         }
-        history[index] = { ...history[index], content: newContent };
+        const currentMessage = history[index];
+        if (Array.isArray(currentMessage.content)) {
+          const textPart = currentMessage.content.find(
+            (part) => part.type === "text",
+          ) as TextContent | undefined;
+          if (textPart) {
+            textPart.text = newContent;
+          }
+        } else {
+          history[index] = { ...currentMessage, content: newContent };
+        }
+
         if (truncate) {
           return { history: history.slice(0, index + 1) };
         }
@@ -454,16 +541,15 @@ export const useVoiceConversation = create<VoiceConversationState>(
       const newHistory = history.slice(0, lastAssistantIndex);
       set({ history: newHistory });
 
-      const { getCharacterById } = require("@/lib/characters");
-      const character = getCharacterById(characterId);
+      const { currentCharacter } = useCharacterStore.getState();
       const messages = [
         {
           role: "system" as const,
-          content: character?.prompt || "You are a helpful assistant.",
+          content: currentCharacter?.prompt || "You are a helpful assistant.",
         },
         ...newHistory,
       ];
-      start({ characterId, messages });
+      start({ messages });
     },
   }),
 );

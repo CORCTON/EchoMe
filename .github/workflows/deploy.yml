@@ -98,6 +98,7 @@ jobs:
             OSS_ACCESS_KEY_ID=${{ secrets.OSS_ACCESS_KEY_ID }}
             OSS_ACCESS_KEY_SECRET=${{ secrets.OSS_ACCESS_KEY_SECRET }}
             OSS_BUCKET=${{ secrets.OSS_BUCKET }}
+            API_BASE_URL=${{ secrets.API_BASE_URL }}
           tags: |
             ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:latest
             ghcr.io/${{ steps.meta.outputs.owner_lower }}/echome-${{ matrix.service }}:${{ github.sha }}
@@ -162,6 +163,7 @@ jobs:
              OSS_ACCESS_KEY_ID='${{ secrets.OSS_ACCESS_KEY_ID }}' \
              OSS_ACCESS_KEY_SECRET='${{ secrets.OSS_ACCESS_KEY_SECRET }}' \
              OSS_BUCKET='${{ secrets.OSS_BUCKET }}' \
+             API_BASE_URL='${{ secrets.API_BASE_URL }}' \
              bash -s" <<'EOF'
           set -e          
           # GHCR 登录
@@ -174,6 +176,7 @@ jobs:
           export OSS_ACCESS_KEY_ID="${OSS_ACCESS_KEY_ID}"
           export OSS_ACCESS_KEY_SECRET="${OSS_ACCESS_KEY_SECRET}"
           export OSS_BUCKET="${OSS_BUCKET}"
+          export API_BASE_URL="${API_BASE_URL}"
           
           # 只拉取和重启指定的服务
           echo "拉取 echome-${SERVICE} 镜像..."

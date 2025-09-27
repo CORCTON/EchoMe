@@ -3,3 +3,9 @@ export type APIError = {
   message?: string;
   details?: string;
 };
+
+export interface APIResponse<T> {
+  success: boolean;
+  data: T;
+  error?: APIError;
+}
