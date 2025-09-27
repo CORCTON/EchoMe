@@ -44,6 +44,7 @@ func (s *CharacterService) CreateCharacter(ctx context.Context, audio *string, c
 		Prompt:      characterInfo.Prompt,
 		Avatar:      characterInfo.Avatar,
 		Flag:        characterInfo.Flag,
+		AudioExample: characterInfo.AudioExample,
 		Status:      domain.CharacterStatusPending, // 使用枚举值设置初始状态为审核中
 	}
 
