@@ -81,7 +81,7 @@ func (h *CharacterHandlers) GetCharacterByID(c echo.Context) error {
 // @Accept json
 // @Produce json
 // @Param request body interfaces.CreateCharacterRequest true "创建角色的请求体参数"
-// @Success 201 {object} domain.Character
+// @Success 200
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /api/character [post]
@@ -105,10 +105,10 @@ func (h *CharacterHandlers) CreateCharacter(c echo.Context) error {
 		Flag:        requestBody.Flag,
 	}
 	// 执行语音克隆并创建角色
-	character, err := h.characterService.CreateCharacter(c.Request().Context(), requestBody.Audio, characterInfo)
+	err := h.characterService.CreateCharacter(c.Request().Context(), requestBody.Audio, characterInfo)
 	if err != nil {
 		return response.InternalError(c, "Failed to clone voice and create character", err.Error())
 	}
 
-	return response.Created(c, character)
+	return response.Success(c, uuid.Nil)
 }

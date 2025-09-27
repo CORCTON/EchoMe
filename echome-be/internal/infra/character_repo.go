@@ -85,22 +85,19 @@ func (r *CharacterRepository) GetByID(ctx context.Context, id uuid.UUID) (*domai
 
 // Save 保存角色
 func (r *CharacterRepository) Save(ctx context.Context, character *domain.Character) error {
-	// 转换为model.Character
-	charModel := &model.Character{
-		ID:        character.ID.String(),
-		Name:      character.Name,
-		Prompt:    character.Prompt,
-		CreatedAt: character.CreatedAt,
-		UpdatedAt: character.UpdatedAt,
-	}
 
-	// 处理可空字段
-	if character.Avatar != nil {
-		charModel.Avatar = character.Avatar
+	modelChar := &model.Character{
+		Name:        character.Name,
+		Prompt:      character.Prompt,
+		Description: character.Description,
+		Status:      character.Status,
+		Avatar:      character.Avatar,
+		Voice:       character.Voice,
+		Flag:        character.Flag,
+		CreatedAt:   character.CreatedAt,
+		UpdatedAt:   character.UpdatedAt,
 	}
-
-	// 使用Create或Save方法保存
-	err := r.query.Character.WithContext(ctx).Save(charModel)
+	err := r.query.Character.WithContext(ctx).Save(modelChar)
 	if err != nil {
 		return err
 	}

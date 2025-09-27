@@ -162,10 +162,14 @@ func (h *WebSocketHandlers) HandleVoiceConversationWebSocket(c echo.Context) err
 		return err
 	}
 
+	cid, err := uuid.Parse(characterID)
+	if err != nil {
+		cid = uuid.Nil
+	}
 	// 创建语音对话请求
 	voiceConvReq := &domain.VoiceConversationRequest{
 		SafeConn:    ws,
-		CharacterID: uuid.MustParse(characterID),
+		CharacterID: cid,
 	}
 
 	// 启动语音对话
