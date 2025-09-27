@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import {  useRef, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
@@ -24,18 +24,26 @@ export function CharacterCarousel({
     (char) => char.id === selectedCharacter.id,
   );
   const voiceSrc = (selectedCharacter.audio_example || "").trim();
+
   const hasValidVoice = voiceSrc && voiceSrc !== "null";
+
+  const handleCharacterSelect = (character: Character) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    onCharacterSelect(character);
+  };
 
   const goToPrevious = () => {
     const prevIndex =
       currentIndex > 0 ? currentIndex - 1 : characters.length - 1;
-    onCharacterSelect(characters[prevIndex]);
+    handleCharacterSelect(characters[prevIndex]);
   };
 
   const goToNext = () => {
     const nextIndex =
       currentIndex < characters.length - 1 ? currentIndex + 1 : 0;
-    onCharacterSelect(characters[nextIndex]);
+    handleCharacterSelect(characters[nextIndex]);
   };
 
   return (
@@ -129,7 +137,7 @@ export function CharacterCarousel({
             <button
               key={character.id}
               type="button"
-              onClick={() => onCharacterSelect(character)}
+              onClick={() => handleCharacterSelect(character)}
               className={`h-2 rounded-full transition-all duration-300 hover:scale-110 ${
                 character.id === selectedCharacter.id
                   ? "bg-slate-800 dark:bg-slate-200 w-8"
