@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import { VoiceActivity } from "@/types/vad";
 import { MicVAD } from "@ricky0123/vad-web";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 // 使用 zustand 管理 VAD（语音活动检测）和 ASR（语音识别）相关状态
 // 包括：VAD 实例管理、音频预缓冲、ASR websocket 连接与消息处理
@@ -243,9 +243,9 @@ export const useVadStore = create(
             set((state) =>
               state.socket === newSocket
                 ? {
-                    asrConnectionState: ConnectionState.Disconnected,
-                    socket: null,
-                  }
+                  asrConnectionState: ConnectionState.Disconnected,
+                  socket: null,
+                }
                 : {},
             );
           };
