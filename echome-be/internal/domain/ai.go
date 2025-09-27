@@ -59,12 +59,25 @@ type TTSConfig struct {
 	Lang   string // 语言类型，如"zh"、"en"等
 }
 
+// ToolCall 工具调用结构
+type ToolCall struct {
+	Name     string                 `json:"name"`
+	Parameters map[string]any      `json:"parameters"`
+}
+
+// ToolCallResponse 工具调用响应结构
+type ToolCallResponse struct {
+	Name     string                 `json:"name"`
+	Content  string                 `json:"content"`
+}
+
 // DashScopeChatRequest 阿里云DashScope请求结构
 type DashScopeChatRequest struct {
 	Model    string              `json:"model"`
 	Messages []map[string]any `json:"messages"`
 	Stream   bool                `json:"stream"`
 	EnableSearch bool                `json:"enable_search,omitempty"`
+	Tools    []map[string]any  `json:"tools,omitempty"`
 }
 
 // DashScopeStreamChunk DashScope流式响应块结构
@@ -73,6 +86,7 @@ type DashScopeStreamChunk struct {
 		Delta struct {
 			Content string `json:"content,omitempty"`
 			Role    string `json:"role,omitempty"`
+			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason,omitempty"`
 	} `json:"choices,omitempty"`

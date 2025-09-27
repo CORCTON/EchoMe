@@ -19,7 +19,7 @@ const (
 func NewAIService(serviceType AIServiceType, apiKey string, endpoint string, timeout int, maxRetries int, llmModel string, maxTokens int, temperature float32) (domain.AIService, error) {
 	switch serviceType {
 	case ServiceTypeALBL:
-		return aliyun.NewAliClient(apiKey, endpoint, timeout, maxRetries, llmModel, maxTokens, temperature), nil
+		return aliyun.NewAliClient(apiKey, endpoint, timeout, maxRetries, llmModel, maxTokens, temperature, ""), nil
 	default:
 		return nil, errors.New("unknown AI service type")
 	}

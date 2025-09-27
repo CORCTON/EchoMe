@@ -1,4 +1,4 @@
-package conversation
+package client
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 
 const tavilyAPIURL = "https://api.tavily.com/search"
 
+// TavilySearchRequest 搜索请求参数
+
 type TavilySearchRequest struct {
 	Query         string `json:"query"`
 	SearchDepth   string `json:"search_depth"`
@@ -18,18 +20,23 @@ type TavilySearchRequest struct {
 	MaxResults    int    `json:"max_results"`
 }
 
+// TavilySearchResult 单个搜索结果
+
 type TavilySearchResult struct {
 	URL     string  `json:"url"`
 	Content string  `json:"content"`
 	Score   float64 `json:"score"`
 }
 
+// TavilySearchResponse 搜索响应结果
+
 type TavilySearchResponse struct {
 	Answer  string               `json:"answer"`
 	Results []TavilySearchResult `json:"results"`
 }
 
-func performSearch(query string, apiKey string) (string, error) {
+// PerformSearch 执行搜索操作
+func PerformSearch(query string, apiKey string) (string, error) {
 	searchReq := TavilySearchRequest{
 		Query:         query,
 		SearchDepth:   "basic",

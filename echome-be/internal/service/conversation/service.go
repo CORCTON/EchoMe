@@ -6,11 +6,12 @@ import (
 	"net"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
+	"github.com/justin/echome-be/client"
 	"github.com/justin/echome-be/client/aliyun"
 	"github.com/justin/echome-be/internal/domain"
 )
@@ -106,7 +107,7 @@ func (s *ConversationService) handleVoiceConversationFlow(ctx context.Context, s
 				if len(msg.Messages) > 0 {
 					lastMessage := msg.Messages[len(msg.Messages)-1]
 					if content, ok := lastMessage["content"].(string); ok {
-						searchContext, err := performSearch(content, s.tavilyAPIKey)
+						searchContext, err := client.PerformSearch(content, s.tavilyAPIKey)
 						if err != nil {
 							zap.L().Error("perform search failed", zap.Error(err))
 						} else {
