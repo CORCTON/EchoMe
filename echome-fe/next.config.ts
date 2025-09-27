@@ -3,7 +3,8 @@ import createNextIntlPlugin from "next-intl/plugin";
 const CopyPlugin = require("copy-webpack-plugin");
 
 // 阿里云 oss 配置
-const ossUrl = `${process.env.OSS_BUCKET}.${process.env.OSS_REGION}.aliyuncs.com`;
+const ossUrl =
+  `${process.env.OSS_BUCKET}.${process.env.OSS_REGION}.aliyuncs.com`;
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -16,8 +17,16 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "api.dicebear.com",
-      }
+      },
     ],
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/v1/api/:path*",
+        destination: `${process.env.API_BASE_URL}/api/:path*`,
+      },
+    ];
   },
   webpack: (config) => {
     config.ignoreWarnings = [
@@ -32,7 +41,8 @@ const nextConfig: NextConfig = {
             to: "../public/vad/[name][ext]",
           },
           {
-            from: "node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js",
+            from:
+              "node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js",
             to: "../public/vad/[name][ext]",
           },
           {

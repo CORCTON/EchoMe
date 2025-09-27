@@ -1,32 +1,33 @@
 "use client";
 import { create } from "zustand";
-import { voiceCharacters, type VoiceCharacter } from "@/lib/characters";
+import type { Character } from "@/types/character";
 
 export interface ModelSettings {
   rolePrompt?: string;
   fileUrls?: string[];
+  internetAccess?: boolean;
 }
 
 export interface CharacterState {
-  characters: VoiceCharacter[];
-  currentCharacter: VoiceCharacter | null;
+  characters: Character[];
+  currentCharacter: Character | null;
   modelSettings: ModelSettings;
+  setCharacters: (characters: Character[]) => void;
   setCurrentCharacter: (id: string) => void;
   updateModelSettings: (settings: ModelSettings) => void;
 }
 
 export const useCharacterStore = create<CharacterState>((set) => ({
-  characters: voiceCharacters,
+  characters: [],
   currentCharacter: null,
   modelSettings: {},
+  setCharacters: (characters: Character[]) => set({ characters }),
   setCurrentCharacter: (id: string) =>
     set((state) => {
       if (state.currentCharacter?.id === id) {
         return state;
       }
-      const character = voiceCharacters.find(
-        (c: VoiceCharacter) => c.id === id,
-      );
+      const character = state.characters.find((c: Character) => c.id === id);
       return { currentCharacter: character || null };
     }),
   updateModelSettings: (settings: ModelSettings) => {

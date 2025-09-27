@@ -1,8 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useVoiceConversation } from "@/store/voice-conversation";
+import {
+  useVoiceConversation,
+  type MessageContent as MessageContentType,
+  type TextContent,
+} from "@/store/voice-conversation";
 import { useCharacterStore } from "@/store/character";
+import { useFileStore, type FileObject } from "@/store/file";
 
 import {
   Message,
@@ -14,17 +19,14 @@ import { MessageActionsComponent } from "@/components/ui/message-actions";
 import { AudioAnimation } from "@/components/AudioAnimation";
 import { VoiceActivity } from "@/types/vad";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, getMimeTypeFromUrl } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 export default function Page() {
-  const characterId = "sol";
-
-  const {
-    currentCharacter,
-    setCurrentCharacter,
-  } = useCharacterStore();
+  const { modelSettings, currentCharacter } = useCharacterStore();
+  const characterId = currentCharacter?.id;
+  const { setFiles } = useFileStore();
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
@@ -44,20 +46,28 @@ export default function Page() {
     interrupt,
     connection,
     editMessage,
+    clear: clearHistory,
+    setFiles: setConversationFiles,
   } = useVoiceConversation();
 
   useEffect(() => {
-    if (characterId) {
-      setCurrentCharacter(characterId);
-    }
-  }, [setCurrentCharacter]);
+    if (!characterId) return;
 
-  useEffect(() => {
-    if (!isConversationStarted) {
-      connectLLM(characterId);
-      setIsConversationStarted(true);
-    }
-  }, [isConversationStarted, connectLLM]);
+    clearHistory();
+    connectLLM(characterId);
+    setIsConversationStarted(true);
+
+    const filesToSet: FileObject[] = (modelSettings.fileUrls || []).map(
+      (url) => ({
+        url,
+        name: url.split("/").pop() || "file",
+        type: getMimeTypeFromUrl(url),
+      }),
+    );
+
+    setFiles(filesToSet);
+    setConversationFiles(filesToSet);
+  }, [characterId, clearHistory, connectLLM, modelSettings.fileUrls, setFiles, setConversationFiles]);
 
   useEffect(() => {
     if (scrollRef.current && !userHasScrolled) {
@@ -85,20 +95,28 @@ export default function Page() {
   }, [userHasScrolled]);
 
   const handleSendMessage = () => {
-    if (input.trim() && characterId && currentCharacter) {
+    if (input.trim()) {
       pushUserMessage(input);
       const latestHistory = useVoiceConversation.getState().history;
       const messages = [
         {
           role: "system" as const,
-          content: currentCharacter?.prompt || "You are a helpful assistant.",
+          content: modelSettings.rolePrompt || "You are a helpful assistant.",
         },
         ...latestHistory,
       ];
       resumeAudio();
-      start({ characterId, messages });
+      start({ messages });
       setInput("");
     }
+  };
+
+  const getTextFromContent = (content: MessageContentType): string => {
+    if (typeof content === "string") {
+      return content;
+    }
+    const textPart = content.find((part) => part.type === "text") as TextContent | undefined;
+    return textPart?.text || "";
   };
 
   const isUiReady = useMemo(() => {
@@ -164,17 +182,14 @@ export default function Page() {
                   setTimeout(() => {
                     const { history: updatedHistory } = useVoiceConversation
                       .getState();
-                    if (characterId && currentCharacter) {
-                      const messages = [
-                        {
-                          role: "system" as const,
-                          content: currentCharacter?.prompt ||
-                            "You are a helpful assistant.",
-                        },
-                        ...updatedHistory,
-                      ];
-                      start({ characterId, messages });
-                    }
+                    const messages = [
+                      {
+                        role: "system" as const,
+                        content: modelSettings.rolePrompt || "You are a helpful assistant.",
+                      },
+                      ...updatedHistory,
+                    ];
+                    start({ messages });
                   }, 100);
                 };
 
@@ -188,7 +203,7 @@ export default function Page() {
                   >
                     {msg.role === "assistant" && currentCharacter && (
                       <MessageAvatar
-                        src={currentCharacter.image}
+                        src={currentCharacter.avatar}
                         alt={currentCharacter.name}
                         fallback={currentCharacter.name.charAt(0)}
                       />
@@ -203,7 +218,7 @@ export default function Page() {
                         ? (
                           <Textarea
                             className="min-w-[40vh]"
-                            defaultValue={msg.content}
+                            defaultValue={getTextFromContent(msg.content)}
                             ref={(input) => input?.focus()}
                             onBlur={(e) => handleSaveEdit(e.target.value)}
                             onKeyDown={(e) => {
@@ -227,7 +242,7 @@ export default function Page() {
                               },
                             )}
                           >
-                            {msg.content}
+                            {getTextFromContent(msg.content)}
                           </MessageContent>
                         )}
                       <MessageActions

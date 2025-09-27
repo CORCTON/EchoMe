@@ -4,8 +4,13 @@ import { useParams } from "next/navigation";
 
 import { useVadStore } from "@/store/vad";
 import { VoiceActivity } from "@/types/vad";
-import { useVoiceConversation } from "@/store/voice-conversation";
+import {
+  useVoiceConversation,
+  type MessageContent as MessageContentType,
+  type TextContent,
+} from "@/store/voice-conversation";
 import { useCharacterStore } from "@/store/character";
+import type { FileObject } from "@/store/file";
 
 import {
   Message,
@@ -15,7 +20,7 @@ import {
 } from "@/components/ui/message";
 import { MessageActionsComponent } from "@/components/ui/message-actions";
 import { AudioAnimation } from "@/components/AudioAnimation";
-import { cn } from "@/lib/utils";
+import { cn, getMimeTypeFromUrl } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { Loader } from "@/components/ui/loader";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +32,7 @@ export default function Page() {
   const {
     currentCharacter,
     setCurrentCharacter,
+    modelSettings,
   } = useCharacterStore();
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
@@ -49,13 +55,9 @@ export default function Page() {
     connection,
     editMessage,
     isResponding,
+    clear: clearHistory,
+    setFiles,
   } = useVoiceConversation();
-
-  useEffect(() => {
-    if (characterId) {
-      setCurrentCharacter(characterId);
-    }
-  }, [characterId, setCurrentCharacter]);
 
   useEffect(() => {
     const onSpeechEnd = (transcript: string) => {
@@ -70,7 +72,7 @@ export default function Page() {
           },
           ...latestHistory,
         ];
-        start({ characterId, messages });
+        start({ messages });
         resetTranscript();
       }
     };
@@ -93,12 +95,34 @@ export default function Page() {
   ]);
 
   useEffect(() => {
-    if (isVadReady && !isConversationStarted && characterId) {
+    if (isVadReady && characterId) {
+      setCurrentCharacter(characterId);
+      clearHistory();
+
+      // 设置文件
+      const filesToSet: FileObject[] = (modelSettings.fileUrls || []).map(
+        (url) => ({
+          url,
+          name: url.split("/").pop() || "file",
+          type: getMimeTypeFromUrl(url),
+        }),
+      );
+      setFiles(filesToSet);
+
       resumeAudio();
       connectLLM(characterId);
       setIsConversationStarted(true);
     }
-  }, [isVadReady, isConversationStarted, characterId, resumeAudio, connectLLM]);
+  }, [
+    isVadReady,
+    characterId,
+    resumeAudio,
+    connectLLM,
+    setCurrentCharacter,
+    clearHistory,
+    modelSettings.fileUrls,
+    setFiles,
+  ]);
 
   useEffect(() => {
     if (scrollRef.current && !userHasScrolled) {
@@ -151,7 +175,13 @@ export default function Page() {
       return VoiceActivity.Idle;
     }
     return voiceActivity;
-  }, [isVadReady, isConversationStarted, voiceActivity, isPlaying, isResponding]);
+  }, [
+    isVadReady,
+    isConversationStarted,
+    voiceActivity,
+    isPlaying,
+    isResponding,
+  ]);
 
   const connectionStatusColor = useMemo(() => {
     switch (connection) {
@@ -221,7 +251,7 @@ export default function Page() {
                         },
                         ...updatedHistory,
                       ];
-                      start({ characterId, messages });
+                      start({ messages });
                     }
                   }, 100);
                 };
@@ -236,7 +266,7 @@ export default function Page() {
                   >
                     {msg.role === "assistant" && currentCharacter && (
                       <MessageAvatar
-                        src={currentCharacter.image}
+                        src={currentCharacter.avatar}
                         alt={currentCharacter.name}
                         fallback={currentCharacter.name.charAt(0)}
                       />
@@ -251,7 +281,7 @@ export default function Page() {
                         ? (
                           <Textarea
                             className="min-w-[40vh]"
-                            defaultValue={msg.content}
+                            defaultValue={getTextFromContent(msg.content)}
                             ref={(input) => input?.focus()}
                             onBlur={(e) => handleSaveEdit(e.target.value)}
                             onKeyDown={(e) => {
@@ -275,7 +305,7 @@ export default function Page() {
                               },
                             )}
                           >
-                            {msg.content}
+                            {getTextFromContent(msg.content)}
                           </MessageContent>
                         )}
                       <MessageActions
@@ -333,4 +363,14 @@ export default function Page() {
       </div>
     </div>
   );
+}
+
+function getTextFromContent(content: MessageContentType): string {
+  if (typeof content === "string") {
+    return content;
+  }
+  const textPart = content.find(
+    (part) => part.type === "text",
+  ) as TextContent | undefined;
+  return textPart?.text || "";
 }

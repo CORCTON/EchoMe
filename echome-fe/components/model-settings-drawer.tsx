@@ -14,15 +14,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import type { VoiceCharacter } from "@/lib/characters";
+
 import { Edit3, X } from "lucide-react";
 import { ImageUploader } from "./image-uploader";
+import { useFileStore } from "@/store/file";
+import { useRouter } from "next/navigation";
+import type { Character } from "@/types/character";
+import { getMimeTypeFromUrl } from "@/lib/utils";
 
 interface ModelSettingsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  character: VoiceCharacter;
-  onReady: (settings: ModelSettings) => void;
+  character: Character;
+  onReady: (settings: Omit<ModelSettings, "fileUrls">) => void;
 }
 
 export interface ModelSettings {
@@ -38,10 +42,11 @@ export function ModelSettingsDrawer({
   onReady,
 }: ModelSettingsDrawerProps) {
   const t = useTranslations("home");
+  const router = useRouter();
   const { modelSettings, updateModelSettings } = useCharacterStore();
-  const [settings, setSettings] = useState<ModelSettings>({
-    fileUrls: modelSettings.fileUrls ?? [],
-    internetAccess: false, // This feature is not in the store yet
+  const { files, addFile, clearFiles } = useFileStore();
+  const [settings, setSettings] = useState<Omit<ModelSettings, "fileUrls">>({
+    internetAccess: false,
     rolePrompt: modelSettings.rolePrompt || character.prompt,
   });
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
@@ -49,7 +54,7 @@ export function ModelSettingsDrawer({
 
   useEffect(() => {
     const checkIsDesktop = () => {
-      setIsDesktop(window.innerWidth >= 640); // sm breakpoint
+      setIsDesktop(window.innerWidth >= 640); 
     };
 
     checkIsDesktop();
@@ -59,17 +64,36 @@ export function ModelSettingsDrawer({
   }, []);
 
   useEffect(() => {
-    setSettings({
-      fileUrls: modelSettings.fileUrls ?? [],
+
+    const defaultSettings = {
       internetAccess: false,
-      rolePrompt: modelSettings.rolePrompt || character.prompt,
+      rolePrompt: character.prompt,
+      fileUrls: [],
+    };
+    
+    setSettings({
+      internetAccess: defaultSettings.internetAccess,
+      rolePrompt: defaultSettings.rolePrompt,
     });
+    
+    updateModelSettings(defaultSettings);
+    clearFiles();
     setIsEditingPrompt(false);
-  }, [character, modelSettings]);
+    
+  }, [character, clearFiles, updateModelSettings]);
 
   const handleReady = () => {
-    updateModelSettings(settings);
+    const finalSettings = { ...settings, fileUrls: files.map((f) => f.url) };
+    updateModelSettings(finalSettings);
     onReady(settings);
+    onOpenChange(false);
+  };
+
+  const handleGoToTestPage = () => {
+    const finalSettings = { ...settings, fileUrls: files.map((f) => f.url) };
+    updateModelSettings(finalSettings);
+    // All data is now in the store, no need for URL params
+    router.push(`/test`);
     onOpenChange(false);
   };
 
@@ -105,9 +129,16 @@ export function ModelSettingsDrawer({
         {/* 内容区：flex-1 可滚动，确保 footer 固定 */}
         <div className="flex-1 overflow-y-auto space-y-6">
           <ImageUploader
-            initialFileUrls={settings.fileUrls}
+            initialFileUrls={files.map((f) => f.url)}
             onUploadComplete={(urls) => {
-              setSettings((prev) => ({ ...prev, fileUrls: urls }));
+              clearFiles();
+              urls.forEach((url) => {
+                addFile({
+                  url,
+                  name: url.split("/").pop() || "uploaded-file",
+                  type: getMimeTypeFromUrl(url),
+                });
+              });
             }}
           />
 
@@ -175,13 +206,21 @@ export function ModelSettingsDrawer({
 
         {/* Footer 固定在底部并使用安全区内边距，移动端时保持可见 */}
         <DrawerFooter className="pt-4 bg-background">
-          <div className="w-full bg-transparent">
+          <div className="w-full bg-transparent space-y-2">
             <Button
               onClick={handleReady}
-              className="w-full cursor-pointer  rounded-2xl"
+              className="w-full cursor-pointer rounded-2xl"
               size="lg"
             >
               {t("ready_button")}
+            </Button>
+            <Button
+              onClick={handleGoToTestPage}
+              variant="outline"
+              className="w-full cursor-pointer rounded-2xl"
+              size="lg"
+            >
+              进入测试页面
             </Button>
           </div>
         </DrawerFooter>
