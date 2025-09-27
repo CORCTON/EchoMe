@@ -48,6 +48,7 @@ func (r *CharacterRepository) GetAll(ctx context.Context) ([]*domain.Character, 
 			Avatar: charModel.Avatar,
 			Voice: charModel.Voice,
 			Flag: charModel.Flag,
+			AudioExample: charModel.AudioExample,
 			CreatedAt: charModel.CreatedAt,
 			UpdatedAt: charModel.UpdatedAt,
 		}
@@ -76,6 +77,7 @@ func (r *CharacterRepository) GetByID(ctx context.Context, id uuid.UUID) (*domai
 		Avatar: charModel.Avatar,
 		Voice: charModel.Voice,
 		Flag: charModel.Flag,
+		AudioExample: charModel.AudioExample,
 		CreatedAt: charModel.CreatedAt,
 		UpdatedAt: charModel.UpdatedAt,
 	}
@@ -94,6 +96,7 @@ func (r *CharacterRepository) Save(ctx context.Context, character *domain.Charac
 		Avatar:      character.Avatar,
 		Voice:       character.Voice,
 		Flag:        character.Flag,
+		AudioExample: character.AudioExample,
 		CreatedAt:   character.CreatedAt,
 		UpdatedAt:   character.UpdatedAt,
 	}
@@ -120,6 +123,11 @@ func (r *CharacterRepository) Update(ctx context.Context, character *domain.Char
 	if character.Avatar != nil {
 		updateFields["avatar"] = character.Avatar
 	}
+	if character.AudioExample != nil {
+		updateFields["audio_example"] = character.AudioExample
+	}
+
+
 
 	// 如果有Description字段，也添加到更新map中
 	if character.Description != nil {
@@ -165,6 +173,9 @@ func (r *CharacterRepository) GetCharactersByStatus(ctx context.Context, status 
 		// 处理可空字段
 		if charModel.Avatar != nil {
 			character.Avatar = charModel.Avatar
+		}
+		if charModel.AudioExample != nil {
+			character.AudioExample = charModel.AudioExample
 		}
 		if charModel.Description != nil {
 			character.Description = charModel.Description

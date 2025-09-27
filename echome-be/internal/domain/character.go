@@ -33,6 +33,8 @@ type Character struct {
 	Voice *string `json:"voice"`
 	// 是否克隆音色
 	Flag bool `json:"flag"`
+	// AudioExample 音色示例音频URL
+	AudioExample *string `json:"audio_example"`
 	// 音色状态，使用枚举值: 1-审核中, 2-可用, 3-禁用
 	Status    int32     `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
