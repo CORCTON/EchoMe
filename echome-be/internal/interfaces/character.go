@@ -9,6 +9,7 @@ import (
 
 // CreateCharacterRequest 定义创建角色请求体结构
 type CreateCharacterRequest struct {
+	AudioExample *string `json:"audio_example"` // 可选，音频示例
 	Audio       *string `json:"audio"`       // 可选，音频文件
 	Description *string `json:"description"` // 可选，角色描述
 	Name        string `json:"name"`        // 必须，角色名称
@@ -102,6 +103,7 @@ func (h *CharacterHandlers) CreateCharacter(c echo.Context) error {
 		Prompt:      requestBody.Prompt,
 		Avatar:      requestBody.Avatar,
 		Description: requestBody.Description,
+		AudioExample: requestBody.Audio,
 		Flag:        requestBody.Flag,
 	}
 	// 执行语音克隆并创建角色
