@@ -1,5 +1,6 @@
 "use client";
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { useCharacterStore } from "./character";
 import type { FileObject } from "./file";
 
@@ -75,27 +76,28 @@ function int16ToAudioBuffer(
   return buffer;
 }
 
-export const useVoiceConversation = create<VoiceConversationState>(
-  (set, get) => ({
-    connection: "idle",
-    ws: null,
-    characterId: null,
-    history: [],
-    files: [],
-    audioCtx: null,
-    gainNode: null,
-    isPlaying: false,
-    isResponding: false,
-    sources: [],
-    nextStartTime: undefined,
-    idleTimer: null,
-    reconnectTimer: null,
-    isInterrupted: false,
-    echoGuardUntil: null,
-    onConnectCallbacks: [],
+export const useVoiceConversation = create(
+  persist<VoiceConversationState>(
+    (set, get) => ({
+      connection: "idle",
+      ws: null,
+      characterId: null,
+      history: [],
+      files: [],
+      audioCtx: null,
+      gainNode: null,
+      isPlaying: false,
+      isResponding: false,
+      sources: [],
+      nextStartTime: undefined,
+      idleTimer: null,
+      reconnectTimer: null,
+      isInterrupted: false,
+      echoGuardUntil: null,
+      onConnectCallbacks: [],
 
-    // 建立或重用 WebSocket 连接
-    connect: (characterId: string) => {
+      // 建立或重用 WebSocket 连接
+      connect: (characterId: string) => {
       const { ws, reconnectTimer, characterId: currentCharacterId } = get();
 
       // 如果存在一个活动的 ws 连接
@@ -569,4 +571,35 @@ export const useVoiceConversation = create<VoiceConversationState>(
       start({ messages });
     },
   }),
+  {
+    name: "voice-conversation-storage",
+    storage: createJSONStorage(() => ({
+      getItem: (name) => {
+        const str = localStorage.getItem(name);
+        if (!str) return null;
+        const { state } = JSON.parse(str);
+        return JSON.stringify({
+          state: {
+            history: state.history,
+            characterId: state.characterId,
+            files: state.files,
+          },
+        });
+      },
+      setItem: (name, newValue) => {
+        const { state } = JSON.parse(newValue);
+        const valueToStore = {
+          state: {
+            history: state.history,
+            characterId: state.characterId,
+            files: state.files,
+          },
+          version: 0,
+        };
+        localStorage.setItem(name, JSON.stringify(valueToStore));
+      },
+      removeItem: (name) => localStorage.removeItem(name),
+    })),
+  },
+),
 );

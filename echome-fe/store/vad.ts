@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { VoiceActivity } from "@/types/vad";
 import { MicVAD } from "@ricky0123/vad-web";
 
@@ -38,9 +39,11 @@ interface VadState {
   resetTranscript: () => void; // 重置转录文本
 }
 
-export const useVadStore = create<VadState>((set, get) => ({
-  isVadReady: false,
-  asrConnectionState: ConnectionState.Disconnected,
+export const useVadStore = create(
+  persist<VadState>(
+    (set, get) => ({
+      isVadReady: false,
+      asrConnectionState: ConnectionState.Disconnected,
   voiceActivity: VoiceActivity.Loading,
   isTranscribing: false,
   vad: null,
@@ -256,4 +259,34 @@ export const useVadStore = create<VadState>((set, get) => ({
 
   resetTranscript: () =>
     set({ transcript: "", committedTranscript: "", isFinal: false }),
-}));
+    }),
+    {
+      name: "vad-storage",
+      storage: createJSONStorage(() => ({
+        getItem: (name) => {
+          const str = localStorage.getItem(name);
+          if (!str) return null;
+          const { state } = JSON.parse(str);
+          return JSON.stringify({
+            state: {
+              committedTranscript: state.committedTranscript,
+              transcript: state.transcript,
+            },
+          });
+        },
+        setItem: (name, newValue) => {
+          const { state } = JSON.parse(newValue);
+          const valueToStore = {
+            state: {
+              committedTranscript: state.committedTranscript,
+              transcript: state.transcript,
+            },
+            version: 0,
+          };
+          localStorage.setItem(name, JSON.stringify(valueToStore));
+        },
+        removeItem: (name) => localStorage.removeItem(name),
+      })),
+    },
+  ),
+);
