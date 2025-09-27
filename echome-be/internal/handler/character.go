@@ -9,12 +9,13 @@ import (
 
 // CreateCharacterRequest 定义创建角色请求体结构
 type CreateCharacterRequest struct {
-	Audio       *string `json:"audio"`       // 可选，音频文件
-	Description *string `json:"description"` // 可选，角色描述
-	Name        string  `json:"name"`        // 必须，角色名称
-	Prompt      string  `json:"prompt"`      // 必须，角色提示词
-	Avatar      *string `json:"avatar"`      // 可选，角色头像
-	Flag        bool    `json:"flag"`        // 必须，标志位
+	AudioExample *string `json:"audio_example"` // 可选，音频示例
+	Audio        *string `json:"audio"`         // 可选，音频文件
+	Description  *string `json:"description"`   // 可选，角色描述
+	Name         string  `json:"name"`          // 必须，角色名称
+	Prompt       string  `json:"prompt"`        // 必须，角色提示词
+	Avatar       *string `json:"avatar"`        // 可选，角色头像
+	Flag         bool    `json:"flag"`          // 必须，标志位
 }
 
 type CharacterHandlers struct {
@@ -98,11 +99,12 @@ func (h *CharacterHandlers) CreateCharacter(c echo.Context) error {
 
 	// 创建角色信息
 	characterInfo := &character.Character{
-		Name:        requestBody.Name,
-		Prompt:      requestBody.Prompt,
-		Avatar:      requestBody.Avatar,
-		Description: requestBody.Description,
-		Flag:        requestBody.Flag,
+		Name:         requestBody.Name,
+		Prompt:       requestBody.Prompt,
+		Avatar:       requestBody.Avatar,
+		Description:  requestBody.Description,
+		AudioExample: requestBody.Audio,
+		Flag:         requestBody.Flag,
 	}
 	// 执行语音克隆并创建角色
 	err := h.characterService.CreateCharacter(c.Request().Context(), requestBody.Audio, characterInfo)

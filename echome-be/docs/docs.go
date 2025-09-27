@@ -239,6 +239,10 @@ const docTemplate = `{
                     "description": "可选，音频文件",
                     "type": "string"
                 },
+                "audio_example": {
+                    "description": "可选，音频示例",
+                    "type": "string"
+                },
                 "avatar": {
                     "description": "可选，角色头像",
                     "type": "string"

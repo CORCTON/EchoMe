@@ -37,12 +37,13 @@ func (s *CharacterService) GetAllCharacters(ctx context.Context) ([]*Character, 
 func (s *CharacterService) CreateCharacter(ctx context.Context, audio *string, characterInfo *Character) error {
 	// 1. 角色初始化
 	character := &Character{
-		Name:        characterInfo.Name,
-		Description: characterInfo.Description,
-		Prompt:      characterInfo.Prompt,
-		Avatar:      characterInfo.Avatar,
-		Flag:        characterInfo.Flag,
-		Status:      CharacterStatusPending, // 使用枚举值设置初始状态为审核中
+		Name:         characterInfo.Name,
+		Description:  characterInfo.Description,
+		Prompt:       characterInfo.Prompt,
+		Avatar:       characterInfo.Avatar,
+		Flag:         characterInfo.Flag,
+		AudioExample: characterInfo.AudioExample,
+		Status:       CharacterStatusPending, // 使用枚举值设置初始状态为审核中
 	}
 
 	// 2. 判断是否需要创建音色
