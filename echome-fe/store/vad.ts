@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import { VoiceActivity } from "@/types/vad";
 import { MicVAD } from "@ricky0123/vad-web";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 // 使用 zustand 管理 VAD（语音活动检测）和 ASR（语音识别）相关状态
 // 包括：VAD 实例管理、音频预缓冲、ASR websocket 连接与消息处理
@@ -56,11 +56,7 @@ export const useVadStore = create(
 
       // 初始化 VAD：创建 MicVAD，设置回调（开始/结束/帧处理）并启动
       initVad: async (onSpeechEndCallback) => {
-        set({
-          voiceActivity: VoiceActivity.Loading,
-          isVadReady: false,
-          onSpeechEndCallback,
-        });
+        set({ voiceActivity: VoiceActivity.Loading, isVadReady: false });
         try {
           const vad = await MicVAD.new({
             baseAssetPath: "/vad/",
@@ -68,8 +64,8 @@ export const useVadStore = create(
             model: "v5",
             preSpeechPadMs: 200, // 预缓冲时间
             positiveSpeechThreshold: 0.9, // 语音检测阈值
-            negativeSpeechThreshold: 0.6, // 静音检测阈值
-            minSpeechMs: 100, // 最小语音长度
+            negativeSpeechThreshold: 0.5, // 静音检测阈值
+            minSpeechMs: 300, // 最小语音长度
 
             // 语音开始：检查 echo guard，打断当前播放，合并并发送预缓冲数据
             onSpeechStart: () => {
@@ -242,10 +238,7 @@ export const useVadStore = create(
           newSocket.onclose = () => {
             set((state) =>
               state.socket === newSocket
-                ? {
-                    asrConnectionState: ConnectionState.Disconnected,
-                    socket: null,
-                  }
+                ? { asrConnectionState: ConnectionState.Disconnected, socket: null }
                 : {},
             );
           };
