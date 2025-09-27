@@ -20,17 +20,21 @@ export function CharacterCarousel({
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const currentIndex = characters.findIndex(char => char.id === selectedCharacter.id);
+  const currentIndex = characters.findIndex(
+    (char) => char.id === selectedCharacter.id,
+  );
   const voiceSrc = (selectedCharacter.audio_example || "").trim();
   const hasValidVoice = voiceSrc && voiceSrc !== "null";
 
   const goToPrevious = () => {
-    const prevIndex = currentIndex > 0 ? currentIndex - 1 : characters.length - 1;
+    const prevIndex =
+      currentIndex > 0 ? currentIndex - 1 : characters.length - 1;
     onCharacterSelect(characters[prevIndex]);
   };
 
   const goToNext = () => {
-    const nextIndex = currentIndex < characters.length - 1 ? currentIndex + 1 : 0;
+    const nextIndex =
+      currentIndex < characters.length - 1 ? currentIndex + 1 : 0;
     onCharacterSelect(characters[nextIndex]);
   };
 
@@ -75,7 +79,7 @@ export function CharacterCarousel({
                 type="button"
                 onClick={() => {
                   if (!audioRef.current) return;
-                  
+
                   if (isPlaying) {
                     audioRef.current.pause();
                   } else {

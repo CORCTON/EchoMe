@@ -67,7 +67,14 @@ export default function Page() {
 
     setFiles(filesToSet);
     setConversationFiles(filesToSet);
-  }, [characterId, clearHistory, connectLLM, modelSettings.fileUrls, setFiles, setConversationFiles]);
+  }, [
+    characterId,
+    clearHistory,
+    connectLLM,
+    modelSettings.fileUrls,
+    setFiles,
+    setConversationFiles,
+  ]);
 
   useEffect(() => {
     if (scrollRef.current && !userHasScrolled) {
@@ -115,7 +122,9 @@ export default function Page() {
     if (typeof content === "string") {
       return content;
     }
-    const textPart = content.find((part) => part.type === "text") as TextContent | undefined;
+    const textPart = content.find((part) => part.type === "text") as
+      | TextContent
+      | undefined;
     return textPart?.text || "";
   };
 
@@ -170,7 +179,8 @@ export default function Page() {
             {history
               .filter((msg) => msg.role !== "system")
               .map((msg, index) => {
-                const isLastAssistantMessage = msg.role === "assistant" &&
+                const isLastAssistantMessage =
+                  msg.role === "assistant" &&
                   index ===
                     history.filter((m) => m.role !== "system").length - 1;
                 const originalMessageIndex = history.indexOf(msg);
@@ -180,12 +190,14 @@ export default function Page() {
                   setEditingMessageIndex(null);
 
                   setTimeout(() => {
-                    const { history: updatedHistory } = useVoiceConversation
-                      .getState();
+                    const { history: updatedHistory } =
+                      useVoiceConversation.getState();
                     const messages = [
                       {
                         role: "system" as const,
-                        content: modelSettings.rolePrompt || "You are a helpful assistant.",
+                        content:
+                          modelSettings.rolePrompt ||
+                          "You are a helpful assistant.",
                       },
                       ...updatedHistory,
                     ];
@@ -214,37 +226,35 @@ export default function Page() {
                         msg.role === "user" ? "max-w-[70%]" : "flex-1 min-w-0",
                       )}
                     >
-                      {editingMessageIndex === originalMessageIndex
-                        ? (
-                          <Textarea
-                            className="min-w-[40vh]"
-                            defaultValue={getTextFromContent(msg.content)}
-                            ref={(input) => input?.focus()}
-                            onBlur={(e) => handleSaveEdit(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSaveEdit(e.currentTarget.value);
-                              }
-                            }}
-                          />
-                        )
-                        : (
-                          <MessageContent
-                            id={`msg-${originalMessageIndex}-${msg.role}`}
-                            markdown
-                            className={cn(
-                              {
-                                "bg-white": msg.role === "user",
-                              },
-                              {
-                                "bg-transparent p-0": msg.role === "assistant",
-                              },
-                            )}
-                          >
-                            {getTextFromContent(msg.content)}
-                          </MessageContent>
-                        )}
+                      {editingMessageIndex === originalMessageIndex ? (
+                        <Textarea
+                          className="min-w-[40vh]"
+                          defaultValue={getTextFromContent(msg.content)}
+                          ref={(input) => input?.focus()}
+                          onBlur={(e) => handleSaveEdit(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSaveEdit(e.currentTarget.value);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <MessageContent
+                          id={`msg-${originalMessageIndex}-${msg.role}`}
+                          markdown
+                          className={cn(
+                            {
+                              "bg-white": msg.role === "user",
+                            },
+                            {
+                              "bg-transparent p-0": msg.role === "assistant",
+                            },
+                          )}
+                        >
+                          {getTextFromContent(msg.content)}
+                        </MessageContent>
+                      )}
                       <MessageActions
                         className={cn("self-end", {
                           "self-start": msg.role === "assistant",
@@ -255,7 +265,8 @@ export default function Page() {
                           messageRole={msg.role as "user" | "assistant"}
                           isLastAssistantMessage={isLastAssistantMessage}
                           onEdit={() =>
-                            setEditingMessageIndex(originalMessageIndex)}
+                            setEditingMessageIndex(originalMessageIndex)
+                          }
                         />
                       </MessageActions>
                     </div>
@@ -283,7 +294,9 @@ export default function Page() {
             className="flex-1"
           />
           <Button onClick={handleSendMessage}>Send</Button>
-          <Button onClick={interrupt} variant="destructive">Interrupt</Button>
+          <Button onClick={interrupt} variant="destructive">
+            Interrupt
+          </Button>
         </div>
       </div>
     </div>

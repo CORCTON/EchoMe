@@ -45,7 +45,7 @@ export function MessageActionsComponent({
   };
 
   return (
-  <div className="flex items-center gap-1 transition-opacity pointer-events-auto">
+    <div className="flex items-center gap-1 transition-opacity pointer-events-auto">
       {messageRole === "user" && (
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogTrigger asChild>

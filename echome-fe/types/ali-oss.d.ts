@@ -1,1 +1,1 @@
-declare module 'ali-oss';
+declare module "ali-oss";

@@ -29,11 +29,8 @@ export default function Page() {
   const params = useParams<{ id: string }>();
   const characterId = params?.id ?? "";
 
-  const {
-    currentCharacter,
-    setCurrentCharacter,
-    modelSettings,
-  } = useCharacterStore();
+  const { currentCharacter, setCurrentCharacter, modelSettings } =
+    useCharacterStore();
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
@@ -68,7 +65,10 @@ export default function Page() {
         const messages = [
           {
             role: "system" as const,
-            content: currentCharacter?.prompt || "You are a helpful assistant.",
+            content:
+              modelSettings.rolePrompt ||
+              currentCharacter?.prompt ||
+              "You are a helpful assistant.",
           },
           ...latestHistory,
         ];
@@ -92,6 +92,7 @@ export default function Page() {
     resetTranscript,
     resumeAudio,
     currentCharacter,
+    modelSettings.rolePrompt,
   ]);
 
   useEffect(() => {
@@ -230,7 +231,8 @@ export default function Page() {
             {history
               .filter((msg) => msg.role !== "system")
               .map((msg, index) => {
-                const isLastAssistantMessage = msg.role === "assistant" &&
+                const isLastAssistantMessage =
+                  msg.role === "assistant" &&
                   index ===
                     history.filter((m) => m.role !== "system").length - 1;
                 const originalMessageIndex = history.indexOf(msg);
@@ -240,13 +242,15 @@ export default function Page() {
                   setEditingMessageIndex(null);
 
                   setTimeout(() => {
-                    const { history: updatedHistory } = useVoiceConversation
-                      .getState();
+                    const { history: updatedHistory } =
+                      useVoiceConversation.getState();
                     if (characterId && currentCharacter) {
                       const messages = [
                         {
                           role: "system" as const,
-                          content: currentCharacter?.prompt ||
+                          content:
+                            modelSettings.rolePrompt ||
+                            currentCharacter?.prompt ||
                             "You are a helpful assistant.",
                         },
                         ...updatedHistory,
@@ -277,37 +281,35 @@ export default function Page() {
                         msg.role === "user" ? "max-w-[70%]" : "flex-1 min-w-0",
                       )}
                     >
-                      {editingMessageIndex === originalMessageIndex
-                        ? (
-                          <Textarea
-                            className="min-w-[40vh]"
-                            defaultValue={getTextFromContent(msg.content)}
-                            ref={(input) => input?.focus()}
-                            onBlur={(e) => handleSaveEdit(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSaveEdit(e.currentTarget.value);
-                              }
-                            }}
-                          />
-                        )
-                        : (
-                          <MessageContent
-                            id={`msg-${originalMessageIndex}-${msg.role}`}
-                            markdown
-                            className={cn(
-                              {
-                                "bg-white": msg.role === "user",
-                              },
-                              {
-                                "bg-transparent p-0": msg.role === "assistant",
-                              },
-                            )}
-                          >
-                            {getTextFromContent(msg.content)}
-                          </MessageContent>
-                        )}
+                      {editingMessageIndex === originalMessageIndex ? (
+                        <Textarea
+                          className="min-w-[40vh]"
+                          defaultValue={getTextFromContent(msg.content)}
+                          ref={(input) => input?.focus()}
+                          onBlur={(e) => handleSaveEdit(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSaveEdit(e.currentTarget.value);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <MessageContent
+                          id={`msg-${originalMessageIndex}-${msg.role}`}
+                          markdown
+                          className={cn(
+                            {
+                              "bg-white": msg.role === "user",
+                            },
+                            {
+                              "bg-transparent p-0": msg.role === "assistant",
+                            },
+                          )}
+                        >
+                          {getTextFromContent(msg.content)}
+                        </MessageContent>
+                      )}
                       <MessageActions
                         className={cn("self-end", {
                           "self-start": msg.role === "assistant",
@@ -318,7 +320,8 @@ export default function Page() {
                           messageRole={msg.role as "user" | "assistant"}
                           isLastAssistantMessage={isLastAssistantMessage}
                           onEdit={() =>
-                            setEditingMessageIndex(originalMessageIndex)}
+                            setEditingMessageIndex(originalMessageIndex)
+                          }
                         />
                       </MessageActions>
                     </div>
@@ -346,10 +349,10 @@ export default function Page() {
             isConversationStarted &&
             animationActivity === VoiceActivity.Idle &&
             history.length === 0 && (
-            <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-              <p className="text-lg text-gray-600">{t("say_something")}</p>
-            </div>
-          )}
+              <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
+                <p className="text-lg text-gray-600">{t("say_something")}</p>
+              </div>
+            )}
 
           <div
             className={cn(
@@ -369,8 +372,8 @@ function getTextFromContent(content: MessageContentType): string {
   if (typeof content === "string") {
     return content;
   }
-  const textPart = content.find(
-    (part) => part.type === "text",
-  ) as TextContent | undefined;
+  const textPart = content.find((part) => part.type === "text") as
+    | TextContent
+    | undefined;
   return textPart?.text || "";
 }

@@ -59,8 +59,8 @@ export default function HomePage({ initialCharacters }: HomePageProps) {
 
   return (
     <>
-      <div 
-        vaul-drawer-wrapper="" 
+      <div
+        vaul-drawer-wrapper=""
         className="h-[100dvh] select-none bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800 flex flex-col items-center justify-center p-6 overflow-hidden"
       >
         {/* 标题 */}
@@ -68,7 +68,9 @@ export default function HomePage({ initialCharacters }: HomePageProps) {
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-2">
             {t("title")}
           </h1>
-          <p className="text-slate-600 dark:text-slate-400">{t("description")}</p>
+          <p className="text-slate-600 dark:text-slate-400">
+            {t("description")}
+          </p>
         </div>
 
         {/* 轮播组件 */}

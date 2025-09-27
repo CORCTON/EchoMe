@@ -5,8 +5,8 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { UploadCloud, X } from "lucide-react";
 import Image from "next/image";
-import { useMutation } from '@tanstack/react-query';
-import uploadFileService from '@/services/upload';
+import { useMutation } from "@tanstack/react-query";
+import uploadFileService from "@/services/upload";
 
 // PDF.js（通过 CDN 动态加载）声明
 // biome-ignore lint/suspicious/noExplicitAny: PDF.js 来自 CDN，无类型定义
@@ -38,13 +38,16 @@ export function ImageUploader({
   const [pdfjsLoaded, setPdfjsLoaded] = useState(false);
 
   // 工具：基于 File 创建 FileState
-  const makeFileState = useCallback((file: File, id: string): FileState => ({
-    id,
-    previewUrl: URL.createObjectURL(file),
-    fileName: file.name,
-    progress: 0,
-    isInitial: false,
-  }), []);
+  const makeFileState = useCallback(
+    (file: File, id: string): FileState => ({
+      id,
+      previewUrl: URL.createObjectURL(file),
+      fileName: file.name,
+      progress: 0,
+      isInitial: false,
+    }),
+    [],
+  );
 
   // 动态加载 PDF.js 库
   useEffect(() => {
@@ -87,11 +90,19 @@ export function ImageUploader({
     async (file: File, fileStateId: string) => {
       try {
         const url = await uploadMutation.mutateAsync(file);
-        setFiles((prev) => prev.map((f) => (f.id === fileStateId ? { ...f, previewUrl: url, progress: 100 } : f)));
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileStateId ? { ...f, previewUrl: url, progress: 100 } : f,
+          ),
+        );
         return url;
       } catch (err) {
-        console.error('Upload error:', err);
-        setFiles((prev) => prev.map((f) => (f.id === fileStateId ? { ...f, error: t('upload_failed') } : f)));
+        console.error("Upload error:", err);
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileStateId ? { ...f, error: t("upload_failed") } : f,
+          ),
+        );
         return null;
       }
     },
@@ -127,7 +138,8 @@ export function ImageUploader({
             continue;
           }
           try {
-            const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
+            const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file))
+              .promise;
             for (let i = 1; i <= pdf.numPages; i++) {
               if (currentFileCount + processedFileCount >= maxFiles) {
                 console.warn(`Cannot upload more than ${maxFiles} files.`);
@@ -142,11 +154,15 @@ export function ImageUploader({
 
               if (!ctx) continue;
               await page.render({ canvasContext: ctx, viewport }).promise;
-              const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+              const blob: Blob | null = await new Promise((resolve) =>
+                canvas.toBlob(resolve, "image/png"),
+              );
               if (!blob) continue;
 
               const id = self.crypto.randomUUID();
-              const pageFile = new File([blob], `${file.name}-page-${i}.png`, { type: "image/png" });
+              const pageFile = new File([blob], `${file.name}-page-${i}.png`, {
+                type: "image/png",
+              });
               newFileStates.push(makeFileState(pageFile, id));
               uploadPromises.push(doUpload(pageFile, id));
               processedFileCount++;
@@ -167,7 +183,14 @@ export function ImageUploader({
         queueMicrotask(() => onUploadComplete(finalUrls));
       });
     },
-    [pdfjsLoaded, onUploadComplete, doUpload, files.length, makeFileState, initialFileUrls],
+    [
+      pdfjsLoaded,
+      onUploadComplete,
+      doUpload,
+      files.length,
+      makeFileState,
+      initialFileUrls,
+    ],
   );
 
   // 移除一个文件

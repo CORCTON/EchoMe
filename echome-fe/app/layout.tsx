@@ -18,7 +18,9 @@ export default async function RootLayout({
   return (
     <html lang={locale}>
       <body>
-        <Providers messages={messages} locale={locale} timeZone={timeZone}>{children}</Providers>
+        <Providers messages={messages} locale={locale} timeZone={timeZone}>
+          {children}
+        </Providers>
       </body>
     </html>
   );
