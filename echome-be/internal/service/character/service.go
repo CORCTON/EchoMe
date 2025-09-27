@@ -23,6 +23,8 @@ func NewCharacterService(repo domain.CharacterRepository, aiService domain.AISer
 	}
 }
 
+var _ domain.CharacterService = (*CharacterService)(nil)
+
 // GetCharacterByID 获取角色信息
 func (s *CharacterService) GetCharacterByID(ctx context.Context, id uuid.UUID) (*domain.Character, error) {
 	return s.characterRepo.GetByID(ctx, id)
@@ -34,18 +36,15 @@ func (s *CharacterService) GetAllCharacters(ctx context.Context) ([]*domain.Char
 }
 
 // CreateCharacter 创建角色
-func (s *CharacterService) CreateCharacter(ctx context.Context, audio *string, characterInfo *domain.Character) (*domain.Character, error) {
+func (s *CharacterService) CreateCharacter(ctx context.Context, audio *string, characterInfo *domain.Character) error {
 	// 1. 角色初始化
 	character := &domain.Character{
-		ID:          uuid.New(), // 生成新的UUID
 		Name:        characterInfo.Name,
 		Description: characterInfo.Description,
 		Prompt:      characterInfo.Prompt,
 		Avatar:      characterInfo.Avatar,
 		Flag:        characterInfo.Flag,
 		Status:      domain.CharacterStatusPending, // 使用枚举值设置初始状态为审核中
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
 	}
 
 	// 2. 判断是否需要创建音色
@@ -53,15 +52,15 @@ func (s *CharacterService) CreateCharacter(ctx context.Context, audio *string, c
 		//  调用AI服务创建音色
 		voiceProfile, err := s.aiService.VoiceClone(ctx, lo.FromPtr(audio))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		character.Voice = voiceProfile
 	}
 	err := s.characterRepo.Save(ctx, character)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return character, nil
+	return nil
 }
 
 // UpdateCharacterStatus 更新角色状态

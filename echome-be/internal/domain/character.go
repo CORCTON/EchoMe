@@ -52,7 +52,7 @@ type CharacterRepository interface {
 type CharacterService interface {
 	GetCharacterByID(ctx context.Context, id uuid.UUID) (*Character, error)
 	GetAllCharacters(ctx context.Context) ([]*Character, error)
-	CreateCharacter(ctx context.Context, audio *string, characterInfo *Character) (*Character, error)
+	CreateCharacter(ctx context.Context, audio *string, characterInfo *Character) error
 	// CheckAndUpdatePendingCharacters 检查并更新审核中角色的状态
 	CheckAndUpdatePendingCharacters(ctx context.Context) error
 	// UpdateCharacterStatus 更新角色状态

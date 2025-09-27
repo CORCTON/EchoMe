@@ -108,7 +108,7 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 	})
 
 	// 使用配置的LLM参数
-	model := "qwen-turbo" // 默认值
+	model := "qwen3-vl-plus" // 默认值
 	maxTokens := 1500     // 默认值
 	temperature := float32(0.7)
 
@@ -272,7 +272,7 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 	defer cancel()
 
 	// 使用配置的LLM参数
-	model := "qwen-plus" // 默认使用qwen-plus模型
+	model := "qwen3-vl-plus"
 	if client.llmModel != "" {
 		model = client.llmModel
 	}

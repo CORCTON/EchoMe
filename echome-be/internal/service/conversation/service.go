@@ -100,16 +100,19 @@ func (s *ConversationService) handleSimpleVoiceConversationFlow(ctx context.Cont
 				}
 				zap.L().Debug("使用提供的对话历史", zap.Int("message_count", len(conversationHistory)))
 			} else {
-				zap.L().Warn("解析JSON消息失败", zap.Error(err))
-				continue
+				// 没有提供历史消息，使用空历史
+				zap.L().Debug("未提供历史对话")
 			}
+		} else {
+			// 只有当JSON解析真正失败时才记录警告
+			zap.L().Warn("解析JSON消息失败", zap.Error(err))
+			continue
 		}
 
 		characterContext := ""
 		if character != nil && character.Prompt != "" {
 			characterContext = character.Prompt
 		}
-
 		if structuredMessage.Stream {
 			if err := s.handleStreamingConversation(conversationCtx, sc, userInput, character, conversationHistory); err != nil {
 				zap.L().Error("流式对话处理失败", zap.Error(err))
