@@ -22,9 +22,9 @@ type AIService interface {
 	// GenerateResponse 生成AI响应
 	// @param ctx 上下文
 	// @param userInput 用户输入
-	// @param characterContext 角色上下文
+	// @param cctx 角色上下文
 	// @param conversationHistory 对话历史，格式为[{"role": "user/assistant", "content": "内容"}, ...]
-	GenerateResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string) (string, error)
+	GenerateResponse(ctx context.Context, cctx []map[string]string) (string, error)
 
 	// GenerateStreamResponse 生成AI流式响应
 	// @param ctx 上下文
@@ -32,7 +32,7 @@ type AIService interface {
 	// @param characterContext 角色上下文
 	// @param conversationHistory 对话历史，格式为[{"role": "user/assistant", "content": "内容"}, ...]
 	// @param onChunk 处理文本块的回调函数
-	GenerateStreamResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string, onChunk func(string) error) error
+	GenerateStreamResponse(ctx context.Context, conversationCtx []map[string]string, onChunk func(string) error) error
 
 	// VoiceClone 执行语音克隆操作
 	// @param ctx 上下文
