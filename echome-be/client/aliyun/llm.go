@@ -52,17 +52,7 @@ type BailianErrorResponse struct {
 	RequestID string `json:"request_id"`
 }
 
-func (client *AliClient) GenerateResponse(ctx context.Context, userInput string, characterContext string, conversationHistory []map[string]string) (string, error) {
-	// 输入验证
-	if strings.TrimSpace(userInput) == "" {
-		return "", fmt.Errorf("user input cannot be empty")
-	}
-
-	// 输入长度限制
-	if len(userInput) > 4000 {
-		return "", fmt.Errorf("user input too long (max 4000 characters)")
-	}
-
+func (client *AliClient) GenerateResponse(ctx context.Context, cctx []map[string]string) (string, error) {
 	// 添加超时控制
 	timeout := 30 * time.Second
 	if client.timeout > 0 {
@@ -73,40 +63,18 @@ func (client *AliClient) GenerateResponse(ctx context.Context, userInput string,
 
 	// 构建消息列表，支持角色上下文和对话历史
 	messages := []BailianMessage{}
-
-	// 设置角色提示词，如果角色上下文为空则使用默认提示词
-	prompt := ""
-	if strings.TrimSpace(characterContext) == "" {
-		prompt = "你是一个友好、专业的AI助手，会用自然的方式回答用户的问题。"
-	} else {
-		prompt = characterContext
-	}
-
-	// 添加系统消息
-	messages = append(messages, BailianMessage{
-		Role:    "system",
-		Content: fmt.Sprintf("你是一个AI助手，请根据以下角色设定进行对话：%s", prompt),
-	})
-
 	// 添加对话历史消息
-	for _, msg := range conversationHistory {
+	for _, msg := range cctx {
 		role, roleOk := msg["role"]
 		content, contentOk := msg["content"]
 		// 确保角色和内容都存在，且角色是合法的
-		if roleOk && contentOk && (role == "user" || role == "assistant") {
+		if roleOk && contentOk && (role == "user" || role == "assistant" || role == "system") {
 			messages = append(messages, BailianMessage{
 				Role:    role,
 				Content: content,
 			})
 		}
 	}
-
-	// 添加最新的用户输入
-	messages = append(messages, BailianMessage{
-		Role:    "user",
-		Content: userInput,
-	})
-
 	// 使用配置的LLM参数
 	model := "qwen3-vl-plus" // 默认值
 	maxTokens := 1500     // 默认值
@@ -252,17 +220,7 @@ type DashScopeStreamChunk struct {
 }
 
 // GenerateStreamResponse 生成AI流式响应（使用阿里云DashScope兼容模式）
-func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput string, prompt string, conversationHistory []map[string]string, onChunk func(string) error) error {
-	// 输入验证
-	if strings.TrimSpace(userInput) == "" {
-		return fmt.Errorf("user input cannot be empty")
-	}
-
-	// 输入长度限制
-	if len(userInput) > 4000 {
-		return fmt.Errorf("user input too long (max 4000 characters)")
-	}
-
+func (client *AliClient) GenerateStreamResponse(ctx context.Context,conversationCtx []map[string]string, onChunk func(string) error) error {
 	// 添加超时控制
 	timeout := 30 * time.Second
 	if client.timeout > 0 {
@@ -280,36 +238,18 @@ func (client *AliClient) GenerateStreamResponse(ctx context.Context, userInput s
 	// 构建消息列表，支持角色上下文和对话历史
 	var messages []map[string]string
 
-	// 设置角色提示词，如果角色上下文为空则使用默认提示词
-	if strings.TrimSpace(prompt) == "" {
-		prompt = "你是一个友好、专业的AI助手，会用自然的方式回答用户的问题。"
-	}
-
-	// 添加系统消息
-	messages = append(messages, map[string]string{
-		"role":    "system",
-		"content": fmt.Sprintf("你是一个AI助手，请根据以下角色设定进行对话：%s", prompt),
-	})
-
-	// 添加对话历史消息
-	for _, msg := range conversationHistory {
+	// 添加对话上下文
+	for _, msg := range conversationCtx {
 		role, roleOk := msg["role"]
 		content, contentOk := msg["content"]
 		// 确保角色和内容都存在，且角色是合法的
-		if roleOk && contentOk && (role == "user" || role == "assistant") {
+		if roleOk && contentOk && (role == "user" || role == "assistant" || role == "system") {
 			messages = append(messages, map[string]string{
 				"role":    role,
 				"content": content,
 			})
 		}
 	}
-
-	// 添加最新的用户输入
-	messages = append(messages, map[string]string{
-		"role":    "user",
-		"content": userInput,
-	})
-
 	// 构建请求
 	request := DashScopeChatRequest{
 		Model:    model,
