@@ -18,21 +18,15 @@ type AIService interface {
 
 	// HandleCosyVoiceTTS handles the TTS WebSocket connection using CosyVoice streaming API.
 	HandleCosyVoiceTTS(ctx context.Context, clientWS WebSocketConn, textStream <-chan string, config TTSConfig) error
-
-	// GenerateResponse 生成AI响应
-	// @param ctx 上下文
-	// @param userInput 用户输入
-	// @param cctx 角色上下文
-	// @param conversationHistory 对话历史，格式为[{"role": "user/assistant", "content": "内容"}, ...]
-	GenerateResponse(ctx context.Context, cctx []map[string]string) (string, error)
-
-	// GenerateStreamResponse 生成AI流式响应
+	// GenerateResponse LLM响应
 	// @param ctx 上下文
 	// @param userInput 用户输入
 	// @param characterContext 角色上下文
 	// @param conversationHistory 对话历史，格式为[{"role": "user/assistant", "content": "内容"}, ...]
 	// @param onChunk 处理文本块的回调函数
-	GenerateStreamResponse(ctx context.Context, conversationCtx []map[string]string, onChunk func(string) error) error
+	GenerateResponse(ctx context.Context, msg DashScopeChatRequest, onChunk func(string) error) error
+
+
 
 	// VoiceClone 执行语音克隆操作
 	// @param ctx 上下文
@@ -63,4 +57,23 @@ type TTSConfig struct {
 	Format string // pcm / mp3
 	Mode   string // server_commit / commit
 	Lang   string // 语言类型，如"zh"、"en"等
+}
+
+// DashScopeChatRequest 阿里云DashScope请求结构
+type DashScopeChatRequest struct {
+	Model    string              `json:"model"`
+	Messages []map[string]any `json:"messages"`
+	Stream   bool                `json:"stream"`
+	EnableSearch bool                `json:"enable_search,omitempty"`
+}
+
+// DashScopeStreamChunk DashScope流式响应块结构
+type DashScopeStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content,omitempty"`
+			Role    string `json:"role,omitempty"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason,omitempty"`
+	} `json:"choices,omitempty"`
 }

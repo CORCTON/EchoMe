@@ -15,12 +15,6 @@ import (
 	"github.com/justin/echome-be/internal/domain"
 )
 
-// WebSocketRequest 定义 WebSocket 请求结构体
-type WebSocketRequest struct {
-	Messages []domain.ContextMessage `json:"messages"`
-	Stream   bool                    `json:"stream,omitempty"`
-}
-
 // Constants 定义常量
 const (
 	TTSMinLength   = 50
@@ -81,7 +75,7 @@ func (s *ConversationService) handleVoiceConversationFlow(ctx context.Context, s
 				// 继续执行
 			}
 
-			messageType, message, err := sc.ReadMessage()
+			_, message, err := sc.ReadMessage()
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					zap.L().Info("读取超时，客户端无响应，关闭连接")
@@ -95,13 +89,8 @@ func (s *ConversationService) handleVoiceConversationFlow(ctx context.Context, s
 				return err // 返回错误以停止 errgroup
 			}
 
-			if messageType != websocket.TextMessage {
-				zap.L().Warn("预期文本消息，收到类型不匹配", zap.Int("message_type", messageType))
-				continue
-			}
-
-			var req WebSocketRequest
-			if err := json.Unmarshal(message, &req); err != nil {
+			var msg domain.DashScopeChatRequest
+			if err := json.Unmarshal(message, &msg); err != nil {
 				zap.L().Warn("解析JSON消息失败", zap.Error(err), zap.String("raw_message", string(message)))
 				_ = sc.WriteJSON(map[string]any{
 					"type":    "error",
@@ -110,47 +99,9 @@ func (s *ConversationService) handleVoiceConversationFlow(ctx context.Context, s
 				continue
 			}
 
-			if len(req.Messages) == 0 {
-				zap.L().Warn("请求消息为空")
-				_ = sc.WriteJSON(map[string]any{
-					"type":    "error",
-					"message": "请求消息不能为空",
-				})
+			if err := s.handleStreamingConversation(ctx, sc, msg, character); err != nil {
+				zap.L().Error("流式对话处理失败", zap.Error(err))
 				continue
-			}
-
-			//  对话上下文
-			cctx := make([]map[string]string, 0, len(req.Messages))
-			for _, msg := range req.Messages {
-				cctx = append(cctx, map[string]string{
-					"role":    msg.Role,
-					"content": msg.Content,
-				})
-			}
-			zap.L().Debug("解析到用户输入和对话历史", zap.Int("history_count", len(cctx)))
-
-			// 根据 stream 字段决定处理流程
-			if req.Stream {
-				if err := s.handleStreamingConversation(ctx, sc, cctx, character); err != nil {
-					zap.L().Error("流式对话处理失败", zap.Error(err))
-					continue
-				}
-			} else {
-				response, err := s.aiService.GenerateResponse(ctx, cctx)
-				if err != nil {
-					zap.L().Error("生成AI响应失败", zap.Error(err))
-					_ = sc.WriteJSON(map[string]any{
-						"type":    "error",
-						"message": "生成AI响应失败",
-					})
-					continue
-				}
-
-				_ = sc.WriteJSON(map[string]any{
-					"type":      "text_response",
-					"response":  response,
-					"timestamp": time.Now(),
-				})
 			}
 		}
 	})
@@ -162,7 +113,7 @@ func (s *ConversationService) handleVoiceConversationFlow(ctx context.Context, s
 func (s *ConversationService) handleStreamingConversation(
 	ctx context.Context,
 	sc domain.WebSocketConn,
-	cctx []map[string]string,
+	msg domain.DashScopeChatRequest,
 	character *domain.Character, // 传入整个 character 对象以获取语音信息
 ) error {
 	_ = sc.WriteJSON(map[string]any{"type": "stream_start", "timestamp": time.Now()})
@@ -209,7 +160,7 @@ func (s *ConversationService) handleStreamingConversation(
 			return nil
 		}
 
-		return s.aiService.GenerateStreamResponse(ctx, cctx, onChunk)
+		return s.aiService.GenerateResponse(ctx, msg, onChunk)
 	})
 
 	if err := g.Wait(); err != nil {
