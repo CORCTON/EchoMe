@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { Character } from "@/types/character";
+import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
+import Image from "next/image";
+import { useRef, useState } from "react";
 
 interface CharacterCarouselProps {
   characters: Character[];
@@ -12,7 +12,7 @@ interface CharacterCarouselProps {
   selectedCharacter: Character;
 }
 
-export function CharacterCarousel({
+export function CharacterCarousel ({
   characters,
   onCharacterSelect,
   selectedCharacter,
@@ -176,11 +176,10 @@ export function CharacterCarousel({
               key={character.id}
               type="button"
               onClick={() => handleCharacterSelect(character)}
-              className={`h-2 rounded-full transition-all duration-300 hover:scale-110 ${
-                character.id === selectedCharacter.id
-                  ? "bg-slate-800 dark:bg-slate-200 w-8"
-                  : "bg-slate-400 dark:bg-slate-600 w-2 hover:bg-slate-500 dark:hover:bg-slate-500"
-              }`}
+              className={`h-2 rounded-full transition-all duration-300 hover:scale-110 ${character.id === selectedCharacter.id
+                ? "bg-slate-800 dark:bg-slate-200 w-8"
+                : "bg-slate-400 dark:bg-slate-600 w-2 hover:bg-slate-500 dark:hover:bg-slate-500"
+                }`}
               aria-label={`选择角色 ${character.name}`}
             />
           ))}
