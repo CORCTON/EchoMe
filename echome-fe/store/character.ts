@@ -1,5 +1,6 @@
 "use client";
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { Character } from "@/types/character";
 
 export interface ModelSettings {
@@ -17,22 +18,29 @@ export interface CharacterState {
   updateModelSettings: (settings: ModelSettings) => void;
 }
 
-export const useCharacterStore = create<CharacterState>((set) => ({
-  characters: [],
-  currentCharacter: null,
-  modelSettings: {},
-  setCharacters: (characters: Character[]) => set({ characters }),
-  setCurrentCharacter: (id: string) =>
-    set((state) => {
-      if (state.currentCharacter?.id === id) {
-        return state;
-      }
-      const character = state.characters.find((c: Character) => c.id === id);
-      return { currentCharacter: character || null };
+export const useCharacterStore = create(
+  persist<CharacterState>(
+    (set) => ({
+      characters: [],
+      currentCharacter: null,
+      modelSettings: {},
+      setCharacters: (characters: Character[]) => set({ characters }),
+      setCurrentCharacter: (id: string) =>
+        set((state) => {
+          if (state.currentCharacter?.id === id) {
+            return state;
+          }
+          const character = state.characters.find((c: Character) => c.id === id);
+          return { currentCharacter: character || null };
+        }),
+      updateModelSettings: (settings: ModelSettings) => {
+        set((state) => ({
+          modelSettings: { ...state.modelSettings, ...settings },
+        }));
+      },
     }),
-  updateModelSettings: (settings: ModelSettings) => {
-    set((state) => ({
-      modelSettings: { ...state.modelSettings, ...settings },
-    }));
-  },
-}));
+    {
+      name: "character-storage",
+    },
+  ),
+);

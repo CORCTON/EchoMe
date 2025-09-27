@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface FileObject {
   url: string;
@@ -13,9 +14,16 @@ interface FileState {
   clearFiles: () => void;
 }
 
-export const useFileStore = create<FileState>((set) => ({
-  files: [],
-  addFile: (file) => set((state) => ({ files: [...state.files, file] })),
-  setFiles: (files) => set({ files }),
-  clearFiles: () => set({ files: [] }),
-}));
+export const useFileStore = create(
+  persist<FileState>(
+    (set) => ({
+      files: [],
+      addFile: (file) => set((state) => ({ files: [...state.files, file] })),
+      setFiles: (files) => set({ files }),
+      clearFiles: () => set({ files: [] }),
+    }),
+    {
+      name: "file-storage",
+    },
+  ),
+);

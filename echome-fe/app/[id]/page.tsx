@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { getCharacters } from "@/services/character";
 
 import { useVadStore } from "@/store/vad";
 import { VoiceActivity } from "@/types/vad";
@@ -29,8 +30,12 @@ export default function Page() {
   const params = useParams<{ id: string }>();
   const characterId = params?.id ?? "";
 
-  const { currentCharacter, setCurrentCharacter, modelSettings } =
-    useCharacterStore();
+  const {
+    currentCharacter,
+    setCurrentCharacter,
+    modelSettings,
+    setCharacters: setStoreCharacters,
+  } = useCharacterStore();
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
@@ -55,6 +60,20 @@ export default function Page() {
     clear: clearHistory,
     setFiles,
   } = useVoiceConversation();
+
+  useEffect(() => {
+    const fetchCharacters = async () => {
+      try {
+        const response = await getCharacters();
+        if (response.success) {
+          setStoreCharacters(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch characters", error);
+      }
+    };
+    fetchCharacters();
+  }, [setStoreCharacters]);
 
   useEffect(() => {
     const onSpeechEnd = (transcript: string) => {
