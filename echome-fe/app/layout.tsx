@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
-import { getLocale, getMessages } from "next-intl/server";
+import { getLocale, getMessages, getTimeZone } from "next-intl/server";
 import { Providers } from "./provider";
 
 export const metadata: Metadata = {
@@ -14,10 +14,11 @@ export default async function RootLayout({
 }>) {
   const locale = await getLocale();
   const messages = await getMessages();
+  const timeZone = await getTimeZone();
   return (
     <html lang={locale}>
       <body>
-        <Providers messages={messages} >{children}</Providers>
+        <Providers messages={messages} locale={locale} timeZone={timeZone}>{children}</Providers>
       </body>
     </html>
   );

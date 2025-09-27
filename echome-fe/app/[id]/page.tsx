@@ -19,9 +19,6 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { Loader } from "@/components/ui/loader";
 import { Textarea } from "@/components/ui/textarea";
-import { ModelSettingsDrawer, type ModelSettings } from "@/components/model-settings-drawer";
-import { Button } from "@/components/ui/button";
-import { Paperclip } from "lucide-react";
 
 export default function Page() {
   const params = useParams<{ id: string }>();
@@ -30,14 +27,12 @@ export default function Page() {
   const {
     currentCharacter,
     setCurrentCharacter,
-    updateModelSettings,
   } = useCharacterStore();
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
     null,
   );
-  const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
   const [userHasScrolled, setUserHasScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +48,7 @@ export default function Page() {
     interrupt,
     connection,
     editMessage,
+    isResponding,
   } = useVoiceConversation();
 
   useEffect(() => {
@@ -135,28 +131,6 @@ export default function Page() {
     }
   }, [voiceActivity, interrupt, isPlaying]);
 
-  const handleModelSettingsReady = (settings: ModelSettings) => {
-    if (!currentCharacter) return;
-
-    updateModelSettings(settings);
-    const latestSettings = useCharacterStore.getState().modelSettings;
-
-    let systemPrompt =
-      latestSettings.rolePrompt || currentCharacter.prompt;
-    if (latestSettings.fileUrl) {
-      systemPrompt += `\n\n[User Uploaded File: ${latestSettings.fileUrl}]`;
-    }
-
-    const messages = [
-      {
-        role: "system" as const,
-        content: systemPrompt,
-      },
-      ...history,
-    ];
-    start({ characterId, messages });
-  };
-
   const isUiReady = useMemo(() => {
     return isVadReady && isConversationStarted;
   }, [isVadReady, isConversationStarted]);
@@ -164,6 +138,9 @@ export default function Page() {
   const t = useTranslations("home");
 
   const animationActivity = useMemo(() => {
+    if (isResponding) {
+      return VoiceActivity.Loading;
+    }
     if (!isVadReady || !isConversationStarted) {
       return VoiceActivity.Loading;
     }
@@ -174,7 +151,7 @@ export default function Page() {
       return VoiceActivity.Idle;
     }
     return voiceActivity;
-  }, [isVadReady, isConversationStarted, voiceActivity, isPlaying]);
+  }, [isVadReady, isConversationStarted, voiceActivity, isPlaying, isResponding]);
 
   const connectionStatusColor = useMemo(() => {
     switch (connection) {
@@ -354,14 +331,6 @@ export default function Page() {
           </div>
         </div>
       </div>
-      {currentCharacter && (
-        <ModelSettingsDrawer
-          open={isModelSettingsOpen}
-          onOpenChange={setIsModelSettingsOpen}
-          character={currentCharacter}
-          onReady={handleModelSettingsReady}
-        />
-      )}
     </div>
   );
 }

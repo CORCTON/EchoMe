@@ -24,5 +24,8 @@
   "ready_button": "准备好了！",
   "edit_prompt": "编辑提示词",
   "uploading": "上传中",
-  "upload_failed": "上传失败，请重试。"
+  "upload_failed": "上传失败，请重试。",
+  "pdf_processing_error": "PDF处理失败",
+  "file_type_support": "仅支持图像和PDF",
+  "pdf_library_loading": "正在初始化"
 }

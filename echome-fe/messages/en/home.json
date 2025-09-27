@@ -24,5 +24,8 @@
   "ready_button": "Ready!",
   "edit_prompt": "Edit Prompt",
   "uploading": "Uploading",
-  "upload_failed": "Upload failed, please try again."
+  "upload_failed": "Upload failed, please try again.",
+  "pdf_processing_error": "PDF processing failed",
+  "file_type_support": "Only images and PDFs are supported",
+  "pdf_library_loading": "Initializing"
 }
