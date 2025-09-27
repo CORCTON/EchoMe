@@ -15,12 +15,8 @@ import { AudioAnimation } from "@/components/AudioAnimation";
 import { VoiceActivity } from "@/types/vad";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
-import { Loader } from "@/components/ui/loader";
 import { Textarea } from "@/components/ui/textarea";
-import { ModelSettingsDrawer, type ModelSettings } from "@/components/model-settings-drawer";
 import { Button } from "@/components/ui/button";
-import { Paperclip } from "lucide-react";
 
 export default function Page() {
   const characterId = "sol";
@@ -28,14 +24,12 @@ export default function Page() {
   const {
     currentCharacter,
     setCurrentCharacter,
-    updateModelSettings,
   } = useCharacterStore();
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
     null,
   );
-  const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [userHasScrolled, setUserHasScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -107,33 +101,9 @@ export default function Page() {
     }
   };
 
-  const handleModelSettingsReady = (settings: ModelSettings) => {
-    if (!currentCharacter) return;
-
-    updateModelSettings(settings);
-    const latestSettings = useCharacterStore.getState().modelSettings;
-
-    let systemPrompt =
-      latestSettings.rolePrompt || currentCharacter.prompt;
-    if (latestSettings.fileUrl) {
-      systemPrompt += `\n\n[User Uploaded File: ${latestSettings.fileUrl}]`;
-    }
-
-    const messages = [
-      {
-        role: "system" as const,
-        content: systemPrompt,
-      },
-      ...history,
-    ];
-    start({ characterId, messages });
-  };
-
   const isUiReady = useMemo(() => {
     return isConversationStarted;
   }, [isConversationStarted]);
-
-  const t = useTranslations("home");
 
   const connectionStatusColor = useMemo(() => {
     switch (connection) {
@@ -301,14 +271,6 @@ export default function Page() {
           <Button onClick={interrupt} variant="destructive">Interrupt</Button>
         </div>
       </div>
-      {currentCharacter && (
-        <ModelSettingsDrawer
-          open={isModelSettingsOpen}
-          onOpenChange={setIsModelSettingsOpen}
-          character={currentCharacter}
-          onReady={handleModelSettingsReady}
-        />
-      )}
     </div>
   );
 }

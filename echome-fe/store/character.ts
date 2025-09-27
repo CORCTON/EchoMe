@@ -4,7 +4,7 @@ import { voiceCharacters, type VoiceCharacter } from "@/lib/characters";
 
 export interface ModelSettings {
   rolePrompt?: string;
-  fileUrl?: string | null;
+  fileUrls?: string[];
 }
 
 export interface CharacterState {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useCharacterStore } from "@/store/character";
 import {
@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { VoiceCharacter } from "@/lib/characters";
 import { Edit3, X } from "lucide-react";
+import { ImageUploader } from "./image-uploader";
 
 interface ModelSettingsDrawerProps {
   open: boolean;
@@ -25,7 +26,7 @@ interface ModelSettingsDrawerProps {
 }
 
 export interface ModelSettings {
-  fileUrl: string | null;
+  fileUrls: string[];
   internetAccess: boolean;
   rolePrompt: string;
 }
@@ -39,63 +40,10 @@ export function ModelSettingsDrawer({
   const t = useTranslations("home");
   const { modelSettings, updateModelSettings } = useCharacterStore();
   const [settings, setSettings] = useState<ModelSettings>({
-    fileUrl: modelSettings.fileUrl ?? null,
+    fileUrls: modelSettings.fileUrls ?? [],
     internetAccess: false, // This feature is not in the store yet
     rolePrompt: modelSettings.rolePrompt || character.prompt,
   });
-  const [isUploading, setIsUploading] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-
-  const onFileChange = useCallback(async (file?: File | null) => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-    if (!file) {
-      setSettings((prev) => ({ ...prev, fileUrl: null }));
-      setFileName(null);
-      setFileError(null);
-      return;
-    }
-
-    const ok = file.type.startsWith("image/") ||
-      file.type === "application/pdf";
-    if (!ok) {
-      setFileError(t("file_type_error"));
-      setFileName(null);
-      return;
-    }
-
-    setFileError(null);
-    setIsUploading(true);
-    setFileName(file.name);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
-      const { url } = await response.json();
-      setSettings((prev) => ({ ...prev, fileUrl: url }));
-    } catch (error) {
-      console.error("Upload error:", error);
-      setFileError(t("upload_failed"));
-      setFileName(null);
-      setSettings((prev) => ({ ...prev, fileUrl: null }));
-    } finally {
-      setIsUploading(false);
-    }
-  }, [t]);
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -112,12 +60,10 @@ export function ModelSettingsDrawer({
 
   useEffect(() => {
     setSettings({
-      fileUrl: modelSettings.fileUrl ?? null,
+      fileUrls: modelSettings.fileUrls ?? [],
       internetAccess: false,
       rolePrompt: modelSettings.rolePrompt || character.prompt,
     });
-    setFileName(null);
-    setFileError(null);
     setIsEditingPrompt(false);
   }, [character, modelSettings]);
 
@@ -129,6 +75,7 @@ export function ModelSettingsDrawer({
 
   return (
     <Drawer
+      dismissible={false}
       open={open}
       onOpenChange={onOpenChange}
       direction={isDesktop ? "right" : "bottom"}
@@ -148,7 +95,7 @@ export function ModelSettingsDrawer({
           </div>
           <div className="ml-3 flex-shrink-0">
             <DrawerClose asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </DrawerClose>
@@ -156,107 +103,16 @@ export function ModelSettingsDrawer({
         </DrawerHeader>
 
         {/* 内容区：flex-1 可滚动，确保 footer 固定 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* 文件上传设置：点击或拖拽上传 */}
-          <div className="space-y-2">
-            <div className="">
-              <div className="space-y-0.5">
-                <div className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  {t("file_upload")}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t("file_upload_description")}
-                </p>
-              </div>
-
-              <div className="mt-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,application/pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = (e.target as HTMLInputElement).files?.[0] ?? null;
-                    onFileChange(f);
-                  }}
-                />
-
-                {/** biome-ignore lint/a11y/useSemanticElements: 需要嵌套Button */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => fileInputRef.current?.click()}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragActive(true);
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    setDragActive(false);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragActive(false);
-                    const f = e.dataTransfer?.files?.[0] ?? null;
-                    if (f) onFileChange(f);
-                  }}
-                  className={"w-full text-left rounded-md border border-dashed p-4 text-sm text-muted-foreground cursor-pointer " +
-                    (dragActive
-                      ? "bg-accent/5 border-accent"
-                      : "bg-transparent")}
-                  aria-label={t("click_or_drag_to_upload")}
-                >
-                  {isUploading
-                    ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="text-sm text-muted-foreground">
-                          {t("uploading")}...
-                        </div>
-                      </div>
-                    )
-                    : fileName
-                    ? (
-                      <div className="flex items-center justify-between">
-                        <div className="truncate text-left">
-                          {fileName}
-                        </div>
-                        <div className="ml-3 flex-shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onFileChange(null);
-                            }}
-                          >
-                            {t("remove")}
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                    : (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="text-sm text-muted-foreground">
-                          {t("click_or_drag_to_upload")}
-                        </div>
-                      </div>
-                    )}
-                </div>
-              </div>
-
-              {fileError && (
-                <div className="mt-2 text-xs text-destructive">{fileError}</div>
-              )}
-            </div>
-          </div>
+        <div className="flex-1 overflow-y-auto space-y-6">
+          <ImageUploader
+            initialFileUrls={settings.fileUrls}
+            onUploadComplete={(urls) => {
+              setSettings((prev) => ({ ...prev, fileUrls: urls }));
+            }}
+          />
 
           {/* 联网功能设置 */}
-          <div className="space-y-2">
+          <div className="space-y-2 px-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <div className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
@@ -275,7 +131,7 @@ export function ModelSettingsDrawer({
           </div>
 
           {/* 角色提示词设置 */}
-          <div className="space-y-3">
+          <div className="space-y-3 px-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <div className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
