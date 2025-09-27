@@ -21,9 +21,10 @@ type AliClient struct {
 	llmModel    string
 	maxTokens   int
 	temperature float32
+	tavilyAPIKey string
 }
 
-func NewAliClient(apiKey string, endpoint string, timeout int, maxRetries int, llmModel string, maxTokens int, temperature float32) *AliClient {
+func NewAliClient(apiKey string, endpoint string, timeout int, maxRetries int, llmModel string, maxTokens int, temperature float32, tavilyAPIKey string) *AliClient {
 	// 为超时配置设置默认值
 	httpTimeout := 30 * time.Second
 	if timeout > 0 {
@@ -38,6 +39,7 @@ func NewAliClient(apiKey string, endpoint string, timeout int, maxRetries int, l
 		llmModel:    llmModel,
 		maxTokens:   maxTokens,
 		temperature: temperature,
+		tavilyAPIKey: tavilyAPIKey,
 		httpClient: &http.Client{
 			Timeout: httpTimeout,
 			Transport: &http.Transport{

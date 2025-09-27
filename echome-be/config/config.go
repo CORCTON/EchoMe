@@ -14,7 +14,13 @@ type Config struct {
 		MaxRetries  int    `mapstructure:"max_retries"`
 	} `mapstructure:"ai"`
 	Aliyun   Aliyun         `mapstructure:"aliyun"`
+	Tavily   TavilyConfig   `mapstructure:"tavily"`
 	Database DatabaseConfig `mapstructure:"database"`
+}
+
+// TavilyConfig holds Tavily API configuration
+type TavilyConfig struct {
+	APIKey string `mapstructure:"api_key"`
 }
 
 func Load(path string) (*Config, error) {
