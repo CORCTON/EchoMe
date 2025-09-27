@@ -7,4 +7,9 @@ import (
 var ConfigProviderSet = wire.NewSet(
 	Load,
 	GetDatabaseConfig,
+	GetTavilyConfig,
 )
+
+func GetTavilyConfig(cfg *Config) *TavilyConfig {
+	return &cfg.Tavily
+}

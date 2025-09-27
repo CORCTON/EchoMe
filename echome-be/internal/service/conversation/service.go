@@ -25,16 +25,19 @@ const (
 type ConversationService struct {
 	aiService        domain.AIService
 	characterService domain.CharacterService
+	tavilyAPIKey     string
 }
 
 // NewConversationService 创建会话服务
 func NewConversationService(
 	aiService domain.AIService,
 	characterService domain.CharacterService,
+	tavilyAPIKey string,
 ) *ConversationService {
 	return &ConversationService{
 		aiService:        aiService,
 		characterService: characterService,
+		tavilyAPIKey:     tavilyAPIKey,
 	}
 }
 
@@ -97,6 +100,20 @@ func (s *ConversationService) handleVoiceConversationFlow(ctx context.Context, s
 					"message": "无效的请求格式，需要JSON",
 				})
 				continue
+			}
+
+			if msg.EnableSearch {
+				if len(msg.Messages) > 0 {
+					lastMessage := msg.Messages[len(msg.Messages)-1]
+					if content, ok := lastMessage["content"].(string); ok {
+						searchContext, err := performSearch(content, s.tavilyAPIKey)
+						if err != nil {
+							zap.L().Error("perform search failed", zap.Error(err))
+						} else {
+							msg.Messages = append(msg.Messages, map[string]any{"role": "system", "content": searchContext})
+						}
+					}
+				}
 			}
 
 			if err := s.handleStreamingConversation(ctx, sc, msg, character); err != nil {

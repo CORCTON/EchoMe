@@ -12,8 +12,8 @@ import (
 	"github.com/justin/echome-be/internal/app"
 	"github.com/justin/echome-be/internal/infra"
 	"github.com/justin/echome-be/internal/interfaces"
+	"github.com/justin/echome-be/internal/service"
 	"github.com/justin/echome-be/internal/service/character"
-	"github.com/justin/echome-be/internal/service/conversation"
 	"github.com/justin/echome-be/internal/service/webrtc"
 )
 
@@ -43,7 +43,8 @@ func InitializeApplication(configPath2 string) (*app.Application, error) {
 	}
 	characterService := character.NewCharacterService(characterRepository, aliClient)
 	webRTCService := webrtc.NewWebRTCService()
-	conversationService := conversation.NewConversationService(aliClient, characterService)
+	tavilyConfig := config.GetTavilyConfig(configConfig)
+	conversationService := service.ProvideConversationService(aliClient, characterService, tavilyConfig)
 	handlers := interfaces.NewHandlers(characterService, webRTCService, aliClient, conversationService)
 	application := app.NewApplication(configConfig, handlers)
 	return application, nil
