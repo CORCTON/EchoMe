@@ -1,9 +1,9 @@
 "use client";
 
-import {  useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { Character } from "@/types/character";
 
 interface CharacterCarouselProps {
@@ -20,6 +20,15 @@ export function CharacterCarousel({
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // 防御性检查
+  if (!characters || characters.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <p className="text-slate-500">暂无角色数据</p>
+      </div>
+    );
+  }
+
   const currentIndex = characters.findIndex(
     (char) => char.id === selectedCharacter.id,
   );
@@ -30,19 +39,50 @@ export function CharacterCarousel({
   const handleCharacterSelect = (character: Character) => {
     if (audioRef.current) {
       audioRef.current.pause();
+      setIsPlaying(false);
     }
     onCharacterSelect(character);
   };
 
   const goToPrevious = () => {
-    const prevIndex =
-      currentIndex > 0 ? currentIndex - 1 : characters.length - 1;
+    // 确保 currentIndex 有效
+    if (currentIndex === -1 || characters.length === 0) {
+      console.warn("goToPrevious: 无效的 currentIndex 或空数组", {
+        currentIndex,
+        charactersLength: characters.length,
+      });
+      return;
+    }
+
+    const prevIndex = currentIndex > 0
+      ? currentIndex - 1
+      : characters.length - 1;
+    console.log("goToPrevious:", {
+      currentIndex,
+      prevIndex,
+      characterName: characters[prevIndex]?.name,
+    });
     handleCharacterSelect(characters[prevIndex]);
   };
 
   const goToNext = () => {
-    const nextIndex =
-      currentIndex < characters.length - 1 ? currentIndex + 1 : 0;
+    // 确保 currentIndex 有效
+    if (currentIndex === -1 || characters.length === 0) {
+      console.warn("goToNext: 无效的 currentIndex 或空数组", {
+        currentIndex,
+        charactersLength: characters.length,
+      });
+      return;
+    }
+
+    const nextIndex = currentIndex < characters.length - 1
+      ? currentIndex + 1
+      : 0;
+    console.log("goToNext:", {
+      currentIndex,
+      nextIndex,
+      characterName: characters[nextIndex]?.name,
+    });
     handleCharacterSelect(characters[nextIndex]);
   };
 
@@ -57,51 +97,53 @@ export function CharacterCarousel({
               variant="outline"
               size="icon"
               onClick={goToPrevious}
-              className="rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 shadow-lg"
+              disabled={currentIndex === -1}
+              className="rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 shadow-lg z-10 flex-shrink-0"
               aria-label="上一位角色"
             >
               <ChevronLeft size={20} />
             </Button>
           )}
 
-          <div className="relative w-48 h-48 rounded-full overflow-hidden border-4 border-white dark:border-slate-700 shadow-2xl">
-            {selectedCharacter.avatar ? (
-              <Image
-                src={selectedCharacter.avatar}
-                alt={selectedCharacter.name}
-                className="w-full h-full object-cover"
-                width={256}
-                height={256}
-                priority
-              />
-            ) : (
-              <div className="w-full h-full bg-slate-200 dark:bg-slate-700" />
-            )}
+          <div className="relative w-48 h-48 rounded-full overflow-hidden border-4 border-white dark:border-slate-700 shadow-2xl flex-shrink-0">
+            {selectedCharacter.avatar
+              ? (
+                <Image
+                  src={selectedCharacter.avatar}
+                  alt={selectedCharacter.name}
+                  className="w-full h-full object-cover"
+                  width={256}
+                  height={256}
+                  priority
+                />
+              )
+              : 
+              <div className="w-full h-full bg-slate-200 dark:bg-slate-700" />}
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+
+            {/* 语音播放按钮 - 只覆盖头像区域 */}
+            {hasValidVoice && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!audioRef.current) return;
+
+                    if (isPlaying) {
+                      audioRef.current.pause();
+                    } else {
+                      audioRef.current.src = voiceSrc;
+                      audioRef.current.play();
+                    }
+                  }}
+                  className="p-3 bg-black/50 rounded-full text-white hover:bg-black/70 transition-all pointer-events-auto z-5"
+                  aria-label={`播放 ${selectedCharacter.name} 的语音`}
+                >
+                  {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+                </button>
+              </div>
+            )}
           </div>
-
-          {/* 语音播放按钮 */}
-          {hasValidVoice && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!audioRef.current) return;
-
-                  if (isPlaying) {
-                    audioRef.current.pause();
-                  } else {
-                    audioRef.current.src = voiceSrc;
-                    audioRef.current.play();
-                  }
-                }}
-                className="p-3 bg-black/50 rounded-full text-white hover:bg-black/70 transition-all"
-                aria-label={`播放 ${selectedCharacter.name} 的语音`}
-              >
-                {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-              </button>
-            </div>
-          )}
 
           {/* 右侧按钮 */}
           {characters.length > 1 && (
@@ -109,7 +151,8 @@ export function CharacterCarousel({
               variant="outline"
               size="icon"
               onClick={goToNext}
-              className="rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 shadow-lg"
+              disabled={currentIndex === -1}
+              className="rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-800 transition-all duration-200 shadow-lg z-10 flex-shrink-0"
               aria-label="下一位角色"
             >
               <ChevronRight size={20} />
@@ -127,8 +170,6 @@ export function CharacterCarousel({
           </p>
         </div>
       </div>
-
-      {/* (已移除) 底部绝对定位导航按钮：已改为头像两侧的按钮 */}
 
       {/* 指示器 */}
       {characters.length > 1 && (
