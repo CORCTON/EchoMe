@@ -29,6 +29,7 @@
   "file_type_support": "Only images and PDFs are supported",
   "pdf_library_loading": "Initializing",
   "search_characters": "Search Characters",
+  "select_character": "Select Character",
   "no_characters_found": "No matching characters found",
   "no_characters": "No characters available",
   "tap_to_interrupt": "Tap to manually interrupt"
