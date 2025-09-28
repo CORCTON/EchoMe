@@ -67,9 +67,8 @@ export function CharacterCarousel ({
       return;
     }
 
-    const prevIndex = currentIndex > 0
-      ? currentIndex - 1
-      : characters.length - 1;
+    const prevIndex =
+      currentIndex > 0 ? currentIndex - 1 : characters.length - 1;
     console.log("goToPrevious:", {
       currentIndex,
       prevIndex,
@@ -88,9 +87,8 @@ export function CharacterCarousel ({
       return;
     }
 
-    const nextIndex = currentIndex < characters.length - 1
-      ? currentIndex + 1
-      : 0;
+    const nextIndex =
+      currentIndex < characters.length - 1 ? currentIndex + 1 : 0;
     console.log("goToNext:", {
       currentIndex,
       nextIndex,
@@ -134,6 +132,18 @@ export function CharacterCarousel ({
               )
               :
               <div className="w-full h-full bg-slate-200 dark:bg-slate-700" />}
+            {selectedCharacter.avatar ? (
+              <Image
+                src={selectedCharacter.avatar}
+                alt={selectedCharacter.name}
+                className="w-full h-full object-cover"
+                width={256}
+                height={256}
+                priority
+              />
+            ) : (
+              <div className="w-full h-full bg-slate-200 dark:bg-slate-700" />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
             {/* 语音播放按钮 - 只覆盖头像区域 */}
