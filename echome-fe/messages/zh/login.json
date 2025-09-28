@@ -1,0 +1,11 @@
+{
+  "title": "身份验证",
+  "description": "请输入密码以访问应用",
+  "passwordLabel": "密码",
+  "passwordPlaceholder": "请输入密码",
+  "loginFailed": "登录失败",
+  "networkError": "网络错误，请重试",
+  "verifying": "验证中...",
+  "login": "登录",
+  "loginSuccess": "登录成功！正在跳转..."
+}

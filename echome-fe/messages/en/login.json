@@ -1,0 +1,11 @@
+{
+  "title": "Authentication",
+  "description": "Please enter your password to access the application",
+  "passwordLabel": "Password",
+  "passwordPlaceholder": "Please enter your password",
+  "loginFailed": "Login failed",
+  "networkError": "Network error, please try again",
+  "verifying": "Verifying...",
+  "login": "Login",
+  "loginSuccess": "Login successful! Redirecting..."
+}

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write ."
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -23,8 +23,10 @@
     "ali-oss": "^6.23.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "jose": "^6.1.0",
     "lucide-react": "^0.544.0",
     "marked": "^16.3.0",
+    "motion": "^12.23.22",
     "next": "15.5.3",
     "next-intl": "^4.3.9",
     "onnxruntime-web": "^1.22.0",
