@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { CharacterCarousel } from "@/components/character-carousel";
+import { CharacterSearch } from "@/components/character-search";
 import {
   ModelSettingsDrawer,
   type ModelSettings,
@@ -63,8 +64,14 @@ export default function HomePage({ initialCharacters }: HomePageProps) {
         vaul-drawer-wrapper=""
         className="h-[100dvh] select-none bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800 flex flex-col items-center justify-center p-6 overflow-hidden"
       >
-        {/* 标题 */}
-        <div className="text-center mb-8">
+        {/* 标题和搜索 */}
+        <div className="text-center mb-8 relative">
+          <div className="absolute right-0 top-0">
+            <CharacterSearch
+              characters={characters}
+              onCharacterSelect={handleCharacterSelect}
+            />
+          </div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-2">
             {t("title")}
           </h1>
