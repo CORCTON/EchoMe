@@ -7,49 +7,146 @@
 
 基于 WebRTC 的实时语音 AI 助手，支持多种 AI 服务提供商和语音处理功能。
 
-## 🏗️ 架构设计
+## 🏗️ 系统架构设计
 
+### 分层架构概览
 ```mermaid
 graph TB
-    subgraph "前端 (Next.js)"
-        A1[角色创建系统] --> A2[系统提示词配置]
-        A2 --> A3[多媒体上传管理]
-        A3 --> A31[PDF.js 文档转图像]
-        A31 --> A32[阿里云 OSS 存储]
-        A32 --> A4[示例音频训练]
-        A5[语音活动检测 VAD] --> A6[WebSocket 连接]
-        A7[OpenAI 格式对话] --> A6
-        A8[联网请求处理] --> A6
+    subgraph "浏览器环境"
+        subgraph "表现层 - Next.js App Router"
+            UI[React 组件层]
+            ROUTE[路由与页面]
+            INTL[国际化层 next-intl]
+        end
+        
+        subgraph "状态管理层"
+            ZUSTAND[Zustand 状态树]
+            QUERY[TanStack Query 缓存]
+            PERSIST[IndexedDB 持久化]
+        end
+        
+        subgraph "服务层"
+            API_SERVICE[HTTP API 服务]
+            WS_SERVICE[WebSocket 服务]
+            UPLOAD[文件上传服务]
+        end
+        
+        subgraph "媒体处理层"
+            VAD[ONNX VAD 引擎]
+            PDFJS[PDF.js 文档处理]
+            AUDIO[Web Audio API]
+            OSS_CLIENT[阿里云 OSS 客户端]
+        end
     end
     
-    subgraph "WebSocket 通信层"
-        WS[双向实时通信]
+    subgraph "网络通信层"
+        HTTP[RESTful API]
+        WS[WebSocket 实时通信]
+        CDN[阿里云 CDN]
     end
     
-    subgraph "后端 (Go)"
-        B1[阿里云 API 集成] --> B2[PostgreSQL 数据库]
-        B3[实时语音转文本 ASR] --> B4[LLM 处理引擎]
-        B4 --> B5[实时 TTS 语音合成]
-        B6[Tavily API 搜索] --> B7[System Prompt 增强]
-        B7 --> B4
+    subgraph "后端服务 - 洋葱架构"
+        subgraph "应用层 - Application"
+            APP[Echo HTTP 服务器]
+            MW[中间件栈]
+            VALID[配置验证器]
+        end
+        
+        subgraph "控制层 - Handlers"
+            CHAR_HANDLER[角色控制器]
+            WS_HANDLER[WebSocket 控制器]
+            ROUTE_HANDLER[路由管理器]
+        end
+        
+        subgraph "领域层 - Domain"
+            CHAR_SERVICE[角色服务]
+            CONV_SERVICE[对话服务]
+            AI_SERVICE[AI 服务接口]
+        end
+        
+        subgraph "基础设施层 - Infrastructure"
+            CHAR_REPO[角色仓储]
+            DB_CONN[GORM 数据库连接]
+            ALI_CLIENT[阿里云客户端]
+            WS_HUB[WebSocket 连接池]
+        end
     end
     
-    subgraph "响应数据流"
-        C1[实时流式文本 JSON]
-        C2[实时流式语音二进制]
-        C3[错误状态反馈]
+    subgraph "外部服务"
+        POSTGRES[(PostgreSQL 数据库)]
+        ALI_ASR[阿里云 ASR]
+        ALI_TTS[阿里云 TTS] 
+        ALI_LLM[阿里云 LLM]
+        ALI_OSS[阿里云 OSS]
+        TAVILY[Tavily 搜索 API]
     end
     
-    A6 --> WS
-    WS --> B3
-    B1 --> B2
-    B4 --> C1
-    B5 --> C2
-    B4 --> C3
-    C1 --> WS
-    C2 --> WS 
-    C3 --> WS
-    WS --> A5
+    %% 前端内部连接
+    UI --> ZUSTAND
+    UI --> QUERY
+    ROUTE --> API_SERVICE
+    API_SERVICE --> HTTP
+    WS_SERVICE --> WS
+    VAD --> AUDIO
+    PDFJS --> UPLOAD
+    UPLOAD --> OSS_CLIENT
+    OSS_CLIENT --> CDN
+    
+    %% 网络连接
+    HTTP --> APP
+    WS --> WS_HANDLER
+    CDN --> ALI_OSS
+    
+    %% 后端内部连接 (Wire DI)
+    APP --> CHAR_HANDLER
+    APP --> WS_HANDLER
+    CHAR_HANDLER --> CHAR_SERVICE
+    WS_HANDLER --> CONV_SERVICE
+    CHAR_SERVICE --> CHAR_REPO
+    CONV_SERVICE --> AI_SERVICE
+    AI_SERVICE --> ALI_CLIENT
+    CHAR_REPO --> DB_CONN
+    WS_HANDLER --> WS_HUB
+    
+    %% 外部服务连接
+    DB_CONN --> POSTGRES
+    ALI_CLIENT --> ALI_ASR
+    ALI_CLIENT --> ALI_TTS
+    ALI_CLIENT --> ALI_LLM
+    AI_SERVICE --> TAVILY
+```
+
+### 数据流与通信模式
+```mermaid
+sequenceDiagram
+    participant U as 用户界面
+    participant V as VAD引擎
+    participant W as WebSocket
+    participant A as AI服务
+    participant T as TTS引擎
+    participant D as 数据库
+    
+    Note over U,D: 实时语音对话流程
+    
+    U->>V: 开始录音
+    V->>V: ONNX模型检测语音
+    V->>W: 发送音频帧
+    W->>A: 流式ASR识别
+    A->>U: 返回增量文本
+    A->>A: LLM处理 + Tavily搜索
+    A->>T: 生成语音请求
+    T->>W: 流式音频数据
+    W->>U: 播放合成语音
+    A->>D: 保存对话历史
+    
+    Note over U,D: 角色管理流程
+    
+    U->>U: PDF.js处理文档
+    U->>OSS: 上传多媒体文件
+    U->>W: 创建角色请求
+    W->>A: 调用阿里云API
+    A->>D: 存储角色数据
+    D->>U: 返回角色信息
 ```
 
 ## 🛠️ 技术栈
