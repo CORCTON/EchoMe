@@ -1,5 +1,5 @@
 server:
-  port: "8080"
+  port: "8081"
 datebase:
   host: "localhost"
   port: "5432"
@@ -10,6 +10,8 @@ ai:
   service_type: "alibailian"
   timeout: 30
   max_retries: 3
+webrtc:
+  stun_server: "stun:stun.example.com:19302"
 tavily:
   api_key: "your_tavily_api_key"
 aliyun:

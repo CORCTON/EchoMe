@@ -17,11 +17,11 @@ func GetDatabaseConfig(cfg *Config) *DatabaseConfig {
 	return &cfg.Database
 }
 
-const postgresTCPDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable"
+const postgresTcpDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable"
 
 func (cfg *DatabaseConfig) GetDSN() string {
 	return fmt.Sprintf(
-		postgresTCPDSN,
+		postgresTcpDSN,
 		cfg.Host,
 		cfg.User,
 		cfg.Password,

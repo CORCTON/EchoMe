@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-// ConversationError 会话错误
+// ConversationError represents errors that can occur during conversation processing
 type ConversationError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -18,7 +18,7 @@ func (e *ConversationError) Error() string {
 	return fmt.Sprintf("[%s] %s", e.Code, e.Message)
 }
 
-// ErrorCodes 会话错误码
+// Error codes for conversation service
 const (
 	ErrCodeCharacterNotFound  = "CHARACTER_NOT_FOUND"
 	ErrCodeSessionNotFound    = "SESSION_NOT_FOUND"
@@ -31,7 +31,7 @@ const (
 	ErrCodeMessageSaveFailed  = "MESSAGE_SAVE_FAILED"
 )
 
-// NewConversationError 创建会话错误
+// NewConversationError creates a new conversation error
 func NewConversationError(code, message, details string) *ConversationError {
 	return &ConversationError{
 		Code:    code,
@@ -40,7 +40,7 @@ func NewConversationError(code, message, details string) *ConversationError {
 	}
 }
 
-// WrapError 包装错误
+// WrapError wraps an existing error with conversation error context
 func WrapError(code, message string, err error) *ConversationError {
 	details := ""
 	if err != nil {
