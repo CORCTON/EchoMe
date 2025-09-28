@@ -30,12 +30,7 @@ graph TB
             WS_SERVICE[WebSocket 服务]
             UPLOAD[文件上传服务]
         end
-     #### 🔧 核心技术特性
-- **WebSocket双通道**: ASR识别和主要数据传输分离处理
-- **实时流处理**: LLM文本流和TTS音频流的并行处理架构
-- **前端多媒体**: PDF.js转换、OSS直传、Web Audio音频处理
-- **多模态AI**: 集成图像识别、联网搜索、实时语音合成
-- **流式响应**: 所有AI服务都采用流式处理，最小化延迟       subgraph "媒体处理层"
+        subgraph "媒体处理层"
             VAD[ONNX VAD 引擎]
             PDFJS[PDF.js 文档处理]
             AUDIO[Web Audio API]
@@ -117,6 +112,14 @@ graph TB
     ALI_CLIENT --> ALI_LLM
     AI_SERVICE --> TAVILY
 ```
+
+#### 🔧 核心技术特性
+- **WebSocket双通道**: ASR识别和主要数据传输分离处理
+- **实时流处理**: LLM文本流和TTS音频流的并行处理架构
+- **前端多媒体**: PDF.js转换、OSS直传、Web Audio音频处理
+- **多模态AI**: 集成图像识别、联网搜索、实时语音合成
+- **流式响应**: 所有AI服务都采用流式处理，最小化延迟
+
 
 ### 核心数据流与通信模式
 
