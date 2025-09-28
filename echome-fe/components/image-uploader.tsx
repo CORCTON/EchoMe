@@ -25,13 +25,11 @@ interface FileState {
 interface ImageUploaderProps {
   onUploadComplete: (fileUrls: string[]) => void;
   initialFileUrls?: string[] | null;
-  onUploadingStateChange?: (isUploading: boolean) => void;
 }
 
 export function ImageUploader({
   onUploadComplete,
   initialFileUrls,
-  onUploadingStateChange,
 }: ImageUploaderProps) {
   const t = useTranslations("home");
   const [files, setFiles] = useState<FileState[]>([]);
@@ -177,14 +175,7 @@ export function ImageUploader({
 
       setFiles((prev) => [...prev, ...newFileStates]);
 
-      if (uploadPromises.length > 0) {
-        onUploadingStateChange?.(true);
-      }
-
       Promise.all(uploadPromises).then((urls) => {
-        if (uploadPromises.length > 0) {
-          onUploadingStateChange?.(false);
-        }
         const successful = urls.filter((u): u is string => !!u);
         // 避免在渲染期间执行父组件 setState：将回调放到微任务队列中异步执行
         const initial = initialFileUrls ?? [];
@@ -199,7 +190,6 @@ export function ImageUploader({
       files.length,
       makeFileState,
       initialFileUrls,
-      onUploadingStateChange,
     ],
   );
 
