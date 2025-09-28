@@ -32,13 +32,11 @@ interface VadState {
   vad: MicVAD | null; // VAD 实例
   preSpeechBuffer: Float32Array[]; // 语音开始前的预缓冲帧（用于补发）
   audioQueue: Float32Array[]; // 在 websocket 建立期间排队的音频帧
-  onSpeechEndCallback: ((transcript: string) => void) | null;
   initVad: (onSpeechEnd: (transcript: string) => void) => Promise<void>; // 初始化 VAD
   disconnect: () => void; // 断开并清理资源
   send: (data: Float32Array) => void; // 发送 PCM 音频到 ASR
   setVoiceActivity: (activity: VoiceActivity) => void; // 更新语音活动状态
   resetTranscript: () => void; // 重置转录文本
-  forceEndSpeech: () => void;
 }
 
 export const useVadStore = create(
@@ -46,255 +44,220 @@ export const useVadStore = create(
     (set, get) => ({
       isVadReady: false,
       asrConnectionState: ConnectionState.Disconnected,
-      voiceActivity: VoiceActivity.Loading,
-      isTranscribing: false,
-      vad: null,
-      preSpeechBuffer: [],
-      audioQueue: [],
-      committedTranscript: "",
-      onSpeechEndCallback: null,
+  voiceActivity: VoiceActivity.Loading,
+  isTranscribing: false,
+  vad: null,
+  preSpeechBuffer: [],
+  audioQueue: [],
+  committedTranscript: "",
 
-      // 初始化 VAD：创建 MicVAD，设置回调（开始/结束/帧处理）并启动
-      initVad: async (onSpeechEndCallback) => {
-        set({
-          voiceActivity: VoiceActivity.Loading,
-          isVadReady: false,
-          onSpeechEndCallback,
-        });
-        try {
-          const vad = await MicVAD.new({
-            baseAssetPath: "/vad/",
-            onnxWASMBasePath: "/vad/",
-            model: "v5",
-            preSpeechPadMs: 200, // 预缓冲时间
-            positiveSpeechThreshold: 0.9, // 语音检测阈值
-            negativeSpeechThreshold: 0.6, // 静音检测阈值
-            minSpeechMs: 100, // 最小语音长度
+  // 初始化 VAD：创建 MicVAD，设置回调（开始/结束/帧处理）并启动
+  initVad: async (onSpeechEndCallback) => {
+    set({ voiceActivity: VoiceActivity.Loading, isVadReady: false });
+    try {
+      const vad = await MicVAD.new({
+        baseAssetPath: "/vad/",
+        onnxWASMBasePath: "/vad/",
+        model: "v5",
+        preSpeechPadMs: 200, // 预缓冲时间
+        positiveSpeechThreshold: 0.9, // 语音检测阈值
+        negativeSpeechThreshold: 0.6, // 静音检测阈值
+        minSpeechMs: 100, // 最小语音长度
 
-            // 语音开始：检查 echo guard，打断当前播放，合并并发送预缓冲数据
-            onSpeechStart: () => {
-              const { echoGuardUntil, interrupt } =
-                require("@/store/voice-conversation").useVoiceConversation.getState();
-              if (echoGuardUntil && Date.now() < echoGuardUntil) {
-                return;
-              }
-              // 中断当前播放并重置转录状态
-              interrupt();
-              get().resetTranscript();
-              const { preSpeechBuffer, send } = get();
-              if (preSpeechBuffer.length > 0) {
-                // 将预缓冲帧拼接成一个连续的 Float32Array 并发送
-                const concatenated = new Float32Array(
-                  preSpeechBuffer.reduce((acc, val) => acc + val.length, 0),
-                );
-                let offset = 0;
-                for (const chunk of preSpeechBuffer) {
-                  concatenated.set(chunk, offset);
-                  offset += chunk.length;
-                }
-                send(concatenated);
-              }
-              set({
-                voiceActivity: VoiceActivity.Speaking,
-                isTranscribing: true,
-                preSpeechBuffer: [],
-              });
-            },
-
-            // 语音结束：关闭 ASR 连接并回调最终文本
-            onSpeechEnd: () => {
-              set({
-                voiceActivity: VoiceActivity.Loading,
-                isTranscribing: false,
-                preSpeechBuffer: [],
-              });
-              const { socket, transcript } = get();
-              if (socket) {
-                socket.close();
-                set({
-                  socket: null,
-                  asrConnectionState: ConnectionState.Disconnected,
-                });
-              }
-              if (transcript) {
-                onSpeechEndCallback(transcript);
-              }
-            },
-
-            // 每帧处理：如果正在转录则发送，否则将帧保存在预缓冲队列中
-            onFrameProcessed: (_, frame) => {
-              const { isTranscribing, preSpeechBuffer, send } = get();
-              if (isTranscribing) {
-                send(frame);
-              } else {
-                const bufferSize = 7; // 预缓冲最大帧数
-                const newBuffer = [...preSpeechBuffer, frame];
-                if (newBuffer.length > bufferSize) {
-                  newBuffer.shift();
-                }
-                set({ preSpeechBuffer: newBuffer });
-              }
-            },
-          });
-          set({ vad, voiceActivity: VoiceActivity.Idle, isVadReady: true });
-          vad.start();
-        } catch (e) {
-          console.error("Failed to initialize VAD", e);
-          set({ voiceActivity: VoiceActivity.Idle, isVadReady: false });
-        }
-      },
-
-      transcript: "",
-      isFinal: false,
-      socket: null,
-
-      // 断开并清理 websocket 与 VAD 实例
-      disconnect: () => {
-        const { socket, vad } = get();
-        if (socket) {
-          socket.onopen = null;
-          socket.onmessage = null;
-          socket.onclose = null;
-          socket.onerror = null;
-          socket.close();
-        }
-        vad?.destroy();
-        set({
-          socket: null,
-          asrConnectionState: ConnectionState.Disconnected,
-          vad: null,
-          isVadReady: false,
-          isTranscribing: false,
-        });
-      },
-
-      // 发送音频数据到 ASR：先把 Float32 转为 Int16，再通过 websocket 发送
-      send: (data: Float32Array) => {
-        const { socket } = get();
-
-        const sendData = (ws: WebSocket, audioData: Float32Array) => {
-          const buffer = new Int16Array(audioData.length);
-          for (let i = 0; i < audioData.length; i++) {
-            buffer[i] = Math.max(
-              -32768,
-              Math.min(32767, Math.floor(audioData[i] * 32768)),
-            );
+        // 语音开始：检查 echo guard，打断当前播放，合并并发送预缓冲数据
+        onSpeechStart: () => {
+          const { echoGuardUntil, interrupt } =
+            require("@/store/voice-conversation").useVoiceConversation.getState();
+          if (echoGuardUntil && Date.now() < echoGuardUntil) {
+            return;
           }
-          ws.send(buffer.buffer);
-        };
-
-        // 如果没有可用 socket 或者正在关闭，则创建新的 websocket 并在 onopen 时发送当前帧与队列中的数据
-        if (
-          !socket ||
-          socket.readyState === WebSocket.CLOSED ||
-          socket.readyState === WebSocket.CLOSING
-        ) {
-          set({
-            asrConnectionState: ConnectionState.Connecting,
-            audioQueue: [],
-          });
-          const newSocket = new WebSocket(
-            `${process.env.NEXT_PUBLIC_WS_URL}/ws/asr?sample_rate=16000&format=pcm`,
-          );
-
-          newSocket.onopen = () => {
-            set({
-              asrConnectionState: ConnectionState.Connected,
-              socket: newSocket,
-            });
-            sendData(newSocket, data); // 发送初始化数据（预缓冲）
-            const { audioQueue } = get();
-            for (const queuedData of audioQueue) {
-              sendData(newSocket, queuedData);
-            }
-            set({ audioQueue: [] });
-          };
-
-          // 处理来自 ASR 的文本结果
-          newSocket.onmessage = (event) => {
-            if (typeof event.data !== "string") return;
-            try {
-              const message = JSON.parse(event.data) as AsrResult;
-              if (message?.type === "asr_result") {
-                const text = message.text || "";
-                const isFinal = !!message.sentence_end;
-
-                set((state) => {
-                  const newTranscript = state.committedTranscript + text;
-                  let newCommittedTranscript = state.committedTranscript;
-                  if (isFinal) {
-                    newCommittedTranscript = newTranscript
-                      ? `${newTranscript} `
-                      : state.committedTranscript;
-                  }
-                  return {
-                    transcript: newTranscript,
-                    isFinal,
-                    committedTranscript: newCommittedTranscript,
-                  };
-                });
-              }
-            } catch (e) {
-              console.error("Failed to parse asr message", e);
-            }
-          };
-
-          newSocket.onclose = () => {
-            set((state) =>
-              state.socket === newSocket
-                ? {
-                    asrConnectionState: ConnectionState.Disconnected,
-                    socket: null,
-                  }
-                : {},
+          // 中断当前播放并重置转录状态
+          interrupt();
+          get().resetTranscript();
+          const { preSpeechBuffer, send } = get();
+          if (preSpeechBuffer.length > 0) {
+            // 将预缓冲帧拼接成一个连续的 Float32Array 并发送
+            const concatenated = new Float32Array(
+              preSpeechBuffer.reduce((acc, val) => acc + val.length, 0),
             );
-          };
-
-          newSocket.onerror = (error) => {
-            console.error("ASR WebSocket error:", error);
-            get().disconnect();
-          };
-
-          set({ socket: newSocket });
-        } else if (socket.readyState === WebSocket.CONNECTING) {
-          // socket 建立中：排队等待发送
-          set((state) => ({ audioQueue: [...state.audioQueue, data] }));
-        } else if (socket.readyState === WebSocket.OPEN) {
-          // 直接发送
-          sendData(socket, data);
-        }
-      },
-
-      setVoiceActivity: (activity: VoiceActivity) => {
-        set({ voiceActivity: activity });
-      },
-
-      resetTranscript: () =>
-        set({ transcript: "", committedTranscript: "", isFinal: false }),
-
-      forceEndSpeech: () => {
-        const { socket, transcript, onSpeechEndCallback, vad } = get();
-        set({
-          voiceActivity: VoiceActivity.Loading,
-          isTranscribing: false,
-          preSpeechBuffer: [],
-        });
-        if (socket) {
-          socket.close();
+            let offset = 0;
+            for (const chunk of preSpeechBuffer) {
+              concatenated.set(chunk, offset);
+              offset += chunk.length;
+            }
+            send(concatenated);
+          }
           set({
-            socket: null,
-            asrConnectionState: ConnectionState.Disconnected,
+            voiceActivity: VoiceActivity.Speaking,
+            isTranscribing: true,
+            preSpeechBuffer: [],
           });
+        },
+
+        // 语音结束：关闭 ASR 连接并回调最终文本
+        onSpeechEnd: () => {
+          set({
+            voiceActivity: VoiceActivity.Loading,
+            isTranscribing: false,
+            preSpeechBuffer: [],
+          });
+          const { socket, transcript } = get();
+          if (socket) {
+            socket.close();
+            set({
+              socket: null,
+              asrConnectionState: ConnectionState.Disconnected,
+            });
+          }
+          if (transcript) {
+            onSpeechEndCallback(transcript);
+          }
+        },
+
+        // 每帧处理：如果正在转录则发送，否则将帧保存在预缓冲队列中
+        onFrameProcessed: (_, frame) => {
+          const { isTranscribing, preSpeechBuffer, send } = get();
+          if (isTranscribing) {
+            send(frame);
+          } else {
+            const bufferSize = 7; // 预缓冲最大帧数
+            const newBuffer = [...preSpeechBuffer, frame];
+            if (newBuffer.length > bufferSize) {
+              newBuffer.shift();
+            }
+            set({ preSpeechBuffer: newBuffer });
+          }
+        },
+      });
+      set({ vad, voiceActivity: VoiceActivity.Idle, isVadReady: true });
+      vad.start();
+    } catch (e) {
+      console.error("Failed to initialize VAD", e);
+      set({ voiceActivity: VoiceActivity.Idle, isVadReady: false });
+    }
+  },
+
+  transcript: "",
+  isFinal: false,
+  socket: null,
+
+  // 断开并清理 websocket 与 VAD 实例
+  disconnect: () => {
+    const { socket, vad } = get();
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onclose = null;
+      socket.onerror = null;
+      socket.close();
+    }
+    vad?.destroy();
+    set({
+      socket: null,
+      asrConnectionState: ConnectionState.Disconnected,
+      vad: null,
+      isVadReady: false,
+      isTranscribing: false,
+    });
+  },
+
+  // 发送音频数据到 ASR：先把 Float32 转为 Int16，再通过 websocket 发送
+  send: (data: Float32Array) => {
+    const { socket } = get();
+
+    const sendData = (ws: WebSocket, audioData: Float32Array) => {
+      const buffer = new Int16Array(audioData.length);
+      for (let i = 0; i < audioData.length; i++) {
+        buffer[i] = Math.max(
+          -32768,
+          Math.min(32767, Math.floor(audioData[i] * 32768)),
+        );
+      }
+      ws.send(buffer.buffer);
+    };
+
+    // 如果没有可用 socket 或者正在关闭，则创建新的 websocket 并在 onopen 时发送当前帧与队列中的数据
+    if (
+      !socket ||
+      socket.readyState === WebSocket.CLOSED ||
+      socket.readyState === WebSocket.CLOSING
+    ) {
+      set({ asrConnectionState: ConnectionState.Connecting, audioQueue: [] });
+      const newSocket = new WebSocket(
+        `${process.env.NEXT_PUBLIC_WS_URL}/ws/asr?sample_rate=16000&format=pcm`,
+      );
+
+      newSocket.onopen = () => {
+        set({
+          asrConnectionState: ConnectionState.Connected,
+          socket: newSocket,
+        });
+        sendData(newSocket, data); // 发送初始化数据（预缓冲）
+        const { audioQueue } = get();
+        for (const queuedData of audioQueue) {
+          sendData(newSocket, queuedData);
         }
-        if (transcript && onSpeechEndCallback) {
-          onSpeechEndCallback(transcript);
+        set({ audioQueue: [] });
+      };
+
+      // 处理来自 ASR 的文本结果
+      newSocket.onmessage = (event) => {
+        if (typeof event.data !== "string") return;
+        try {
+          const message = JSON.parse(event.data) as AsrResult;
+          if (message?.type === "asr_result") {
+            const text = message.text || "";
+            const isFinal = !!message.sentence_end;
+
+            set((state) => {
+              const newTranscript = state.committedTranscript + text;
+              let newCommittedTranscript = state.committedTranscript;
+              if (isFinal) {
+                newCommittedTranscript = newTranscript
+                  ? `${newTranscript} `
+                  : state.committedTranscript;
+              }
+              return {
+                transcript: newTranscript,
+                isFinal,
+                committedTranscript: newCommittedTranscript,
+              };
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse asr message", e);
         }
-        vad?.pause();
-        setTimeout(() => {
-          get().vad?.start();
-          set({ voiceActivity: VoiceActivity.Idle });
-        }, 300);
-      },
+      };
+
+      newSocket.onclose = () => {
+        set((state) =>
+          state.socket === newSocket
+            ? { asrConnectionState: ConnectionState.Disconnected, socket: null }
+            : {},
+        );
+      };
+
+      newSocket.onerror = (error) => {
+        console.error("ASR WebSocket error:", error);
+        get().disconnect();
+      };
+
+      set({ socket: newSocket });
+    } else if (socket.readyState === WebSocket.CONNECTING) {
+      // socket 建立中：排队等待发送
+      set((state) => ({ audioQueue: [...state.audioQueue, data] }));
+    } else if (socket.readyState === WebSocket.OPEN) {
+      // 直接发送
+      sendData(socket, data);
+    }
+  },
+
+  setVoiceActivity: (activity: VoiceActivity) => {
+    set({ voiceActivity: activity });
+  },
+
+  resetTranscript: () =>
+    set({ transcript: "", committedTranscript: "", isFinal: false }),
     }),
     {
       name: "vad-storage",

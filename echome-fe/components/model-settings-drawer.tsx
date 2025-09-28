@@ -51,7 +51,6 @@ export function ModelSettingsDrawer({
   });
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const checkIsDesktop = () => {
@@ -136,7 +135,6 @@ export function ModelSettingsDrawer({
         <div className="flex-1 overflow-y-auto space-y-6">
           <ImageUploader
             initialFileUrls={files.map((f) => f.url)}
-            onUploadingStateChange={setIsUploading}
             onUploadComplete={(urls) => {
               clearFiles();
               urls.forEach((url) => {
@@ -216,20 +214,18 @@ export function ModelSettingsDrawer({
           <div className="w-full bg-transparent space-y-2">
             <Button
               onClick={handleReady}
-              disabled={isUploading}
               className="w-full cursor-pointer rounded-2xl"
               size="lg"
             >
-              {isUploading ? t("uploading") : t("ready_button")}
+              {t("ready_button")}
             </Button>
             <Button
               onClick={handleGoToTestPage}
-              disabled={isUploading}
               variant="outline"
               className="w-full cursor-pointer rounded-2xl"
               size="lg"
             >
-              {isUploading ? t("uploading") : "测试页面"}
+              进入测试页面
             </Button>
           </div>
         </DrawerFooter>

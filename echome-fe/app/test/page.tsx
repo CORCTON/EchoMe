@@ -1,8 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useVoiceConversation } from "@/store/voice-conversation";
+import {
+  useVoiceConversation,
+  type MessageContent as MessageContentType,
+  type TextContent,
+} from "@/store/voice-conversation";
 import { useCharacterStore } from "@/store/character";
+import { useFileStore, type FileObject } from "@/store/file";
 
 import {
   Message,
@@ -14,15 +19,14 @@ import { MessageActionsComponent } from "@/components/ui/message-actions";
 import { AudioAnimation } from "@/components/AudioAnimation";
 import { VoiceActivity } from "@/types/vad";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, getMimeTypeFromUrl } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 export default function Page() {
-  const {
-    currentCharacter,
-  } = useCharacterStore();
-  const characterId = currentCharacter?.id ?? "";
+  const { modelSettings, currentCharacter } = useCharacterStore();
+  const characterId = currentCharacter?.id;
+  const { setFiles } = useFileStore();
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(
@@ -42,14 +46,35 @@ export default function Page() {
     interrupt,
     connection,
     editMessage,
+    clear: clearHistory,
+    setFiles: setConversationFiles,
   } = useVoiceConversation();
 
   useEffect(() => {
-    if (!isConversationStarted && characterId) {
-      connectLLM(characterId);
-      setIsConversationStarted(true);
-    }
-  }, [isConversationStarted, connectLLM, characterId]);
+    if (!characterId) return;
+
+    clearHistory();
+    connectLLM(characterId);
+    setIsConversationStarted(true);
+
+    const filesToSet: FileObject[] = (modelSettings.fileUrls || []).map(
+      (url) => ({
+        url,
+        name: url.split("/").pop() || "file",
+        type: getMimeTypeFromUrl(url),
+      }),
+    );
+
+    setFiles(filesToSet);
+    setConversationFiles(filesToSet);
+  }, [
+    characterId,
+    clearHistory,
+    connectLLM,
+    modelSettings.fileUrls,
+    setFiles,
+    setConversationFiles,
+  ]);
 
   useEffect(() => {
     if (scrollRef.current && !userHasScrolled) {
@@ -77,13 +102,13 @@ export default function Page() {
   }, [userHasScrolled]);
 
   const handleSendMessage = () => {
-    if (input.trim() && characterId && currentCharacter) {
+    if (input.trim()) {
       pushUserMessage(input);
       const latestHistory = useVoiceConversation.getState().history;
       const messages = [
         {
           role: "system" as const,
-          content: currentCharacter?.prompt || "You are a helpful assistant.",
+          content: modelSettings.rolePrompt || "You are a helpful assistant.",
         },
         ...latestHistory,
       ];
@@ -91,6 +116,16 @@ export default function Page() {
       start({ messages });
       setInput("");
     }
+  };
+
+  const getTextFromContent = (content: MessageContentType): string => {
+    if (typeof content === "string") {
+      return content;
+    }
+    const textPart = content.find((part) => part.type === "text") as
+      | TextContent
+      | undefined;
+    return textPart?.text || "";
   };
 
   const isUiReady = useMemo(() => {
@@ -144,7 +179,8 @@ export default function Page() {
             {history
               .filter((msg) => msg.role !== "system")
               .map((msg, index) => {
-                const isLastAssistantMessage = msg.role === "assistant" &&
+                const isLastAssistantMessage =
+                  msg.role === "assistant" &&
                   index ===
                     history.filter((m) => m.role !== "system").length - 1;
                 const originalMessageIndex = history.indexOf(msg);
@@ -154,19 +190,18 @@ export default function Page() {
                   setEditingMessageIndex(null);
 
                   setTimeout(() => {
-                    const { history: updatedHistory } = useVoiceConversation
-                      .getState();
-                    if (characterId && currentCharacter) {
-                      const messages = [
-                        {
-                          role: "system" as const,
-                          content: currentCharacter?.prompt ||
-                            "You are a helpful assistant.",
-                        },
-                        ...updatedHistory,
-                      ];
-                      start({ characterId, messages });
-                    }
+                    const { history: updatedHistory } =
+                      useVoiceConversation.getState();
+                    const messages = [
+                      {
+                        role: "system" as const,
+                        content:
+                          modelSettings.rolePrompt ||
+                          "You are a helpful assistant.",
+                      },
+                      ...updatedHistory,
+                    ];
+                    start({ messages });
                   }, 100);
                 };
 
@@ -191,37 +226,35 @@ export default function Page() {
                         msg.role === "user" ? "max-w-[70%]" : "flex-1 min-w-0",
                       )}
                     >
-                      {editingMessageIndex === originalMessageIndex
-                        ? (
-                          <Textarea
-                            className="min-w-[40vh]"
-                            defaultValue={msg.content}
-                            ref={(input) => input?.focus()}
-                            onBlur={(e) => handleSaveEdit(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSaveEdit(e.currentTarget.value);
-                              }
-                            }}
-                          />
-                        )
-                        : (
-                          <MessageContent
-                            id={`msg-${originalMessageIndex}-${msg.role}`}
-                            markdown
-                            className={cn(
-                              {
-                                "bg-white": msg.role === "user",
-                              },
-                              {
-                                "bg-transparent p-0": msg.role === "assistant",
-                              },
-                            )}
-                          >
-                            {msg.content}
-                          </MessageContent>
-                        )}
+                      {editingMessageIndex === originalMessageIndex ? (
+                        <Textarea
+                          className="min-w-[40vh]"
+                          defaultValue={getTextFromContent(msg.content)}
+                          ref={(input) => input?.focus()}
+                          onBlur={(e) => handleSaveEdit(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSaveEdit(e.currentTarget.value);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <MessageContent
+                          id={`msg-${originalMessageIndex}-${msg.role}`}
+                          markdown
+                          className={cn(
+                            {
+                              "bg-white": msg.role === "user",
+                            },
+                            {
+                              "bg-transparent p-0": msg.role === "assistant",
+                            },
+                          )}
+                        >
+                          {getTextFromContent(msg.content)}
+                        </MessageContent>
+                      )}
                       <MessageActions
                         className={cn("self-end", {
                           "self-start": msg.role === "assistant",
@@ -232,7 +265,8 @@ export default function Page() {
                           messageRole={msg.role as "user" | "assistant"}
                           isLastAssistantMessage={isLastAssistantMessage}
                           onEdit={() =>
-                            setEditingMessageIndex(originalMessageIndex)}
+                            setEditingMessageIndex(originalMessageIndex)
+                          }
                         />
                       </MessageActions>
                     </div>
@@ -260,7 +294,9 @@ export default function Page() {
             className="flex-1"
           />
           <Button onClick={handleSendMessage}>Send</Button>
-          <Button onClick={interrupt} variant="destructive">Interrupt</Button>
+          <Button onClick={interrupt} variant="destructive">
+            Interrupt
+          </Button>
         </div>
       </div>
     </div>
