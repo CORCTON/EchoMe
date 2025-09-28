@@ -67,6 +67,13 @@ export default function Page() {
 
     setFiles(filesToSet);
     setConversationFiles(filesToSet);
+
+    // 清理函数
+    return () => {
+      const { stopPlaying, disconnect } = useVoiceConversation.getState();
+      stopPlaying();
+      disconnect();
+    };
   }, [
     characterId,
     clearHistory,

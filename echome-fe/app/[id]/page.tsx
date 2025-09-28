@@ -98,10 +98,14 @@ export default function Page() {
 
     initVad(onSpeechEnd);
     return () => {
+      // 停止播放并断开连接
+      const { stopPlaying, disconnect: disconnectLLM } = useVoiceConversation.getState();
+      stopPlaying();
+      disconnectLLM();
+      
+      // 断开VAD
       const { disconnect: disconnectVad } = useVadStore.getState();
       disconnectVad();
-      const { disconnect: disconnectLLM } = useVoiceConversation.getState();
-      disconnectLLM();
     };
   }, [
     initVad,
