@@ -288,7 +288,7 @@ graph TB
     subgraph "数据层"
         USER_DATA[(用户数据)]
         CHAR_DATA[(角色数据)]
-        CONV_DATA[(对话数据)]
+        CONV_DATA[(对话数据（前端会话缓存）)]
         MEDIA_DATA[(媒体文件)]
     end
     
@@ -320,7 +320,6 @@ graph TB
     VOICE_CHAT --> CONTEXT_MGT
     TEXT_CHAT --> CONTEXT_MGT
     CONTEXT_MGT --> HISTORY
-    HISTORY --> CONV_DATA
     
     %% 内容处理业务流程
     DOC_UPLOAD --> PDF_PARSE
@@ -443,7 +442,7 @@ graph TB
 - **CI/CD**: GitHub Actions
 - **部署**: Linux 服务器 + PM2
 
-## � 项目结构
+## 📁 项目结构
 
 ```
 EchoMe/
@@ -553,7 +552,7 @@ database:
   ssl_mode: "disable"
 ```
 
-## � Docker 部署
+## 🐳 Docker 部署
 
 ### 使用 Docker Compose
 ```bash
@@ -703,7 +702,7 @@ go run tools/migrate.go
   - 流式输出，毫秒级响应
   - 前端VAD配合精确控制识别边界
 
-#### � LLM 双路流式处理
+#### 🤖 LLM 双路流式处理
 - **流式文本生成**: 大语言模型实时输出token流
 - **双路转发架构**: 
   - 路径1：实时转发给前端显示
@@ -759,7 +758,7 @@ go run tools/migrate.go
 - **自动语言检测**: 根据用户输入智能切换
 - **本地化配置**: 时区、数字格式等本地化
 
-#### � 技术特性
+#### ⚙️ 技术特性
 - **PWA 就绪**: 支持离线使用和桌面安装
 - **状态持久化**: 会话和设置自动保存
 - **错误边界**: 完善的错误处理和用户反馈
@@ -773,6 +772,6 @@ go run tools/migrate.go
 4. 推送分支: `git push origin feat/new-feature`
 5. 创建 Pull Request
 
-## � 许可证
+## 📜 许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
