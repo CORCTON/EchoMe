@@ -43,7 +43,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/interfaces.CreateCharacterRequest"
+                            "$ref": "#/definitions/handler.CreateCharacterRequest"
                         }
                     }
                 ],
@@ -91,7 +91,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/domain.Character"
+                                "$ref": "#/definitions/character.Character"
                             }
                         }
                     }
@@ -124,7 +124,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/domain.Character"
+                            "$ref": "#/definitions/character.Character"
                         }
                     }
                 }
@@ -183,60 +183,16 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "/ws/webrtc/{sessionId}/{userId}": {
-            "get": {
-                "description": "建立WebRTC信令的WebSocket连接，用于点对点通信",
-                "tags": [
-                    "websocket"
-                ],
-                "summary": "WebRTC信令WebSocket连接",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "会话ID",
-                        "name": "sessionId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "用户ID",
-                        "name": "userId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
-        "domain.Character": {
+        "character.Character": {
             "type": "object",
             "properties": {
+                "audio_example": {
+                    "description": "AudioExample 音色示例音频URL",
+                    "type": "string"
+                },
                 "avatar": {
                     "description": "角色头像URL",
                     "type": "string"
@@ -276,11 +232,15 @@ const docTemplate = `{
                 }
             }
         },
-        "interfaces.CreateCharacterRequest": {
+        "handler.CreateCharacterRequest": {
             "type": "object",
             "properties": {
                 "audio": {
                     "description": "可选，音频文件",
+                    "type": "string"
+                },
+                "audio_example": {
+                    "description": "可选，音频示例",
                     "type": "string"
                 },
                 "avatar": {

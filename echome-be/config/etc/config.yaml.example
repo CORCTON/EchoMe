@@ -12,6 +12,8 @@ ai:
   max_retries: 3
 webrtc:
   stun_server: "stun:stun.example.com:19302"
+tavily:
+  api_key: "your_tavily_api_key"
 aliyun:
   api_key: "your-alibailian-api-key"
   endpoint: "https://dashscope.aliyuncs.com"
