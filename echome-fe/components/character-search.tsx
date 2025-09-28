@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -35,63 +34,28 @@ export function CharacterSearch({
   const t = useTranslations("home");
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const isDesktop = useMediaQuery("(min-width: 768px)");
-
-  const filteredCharacters = useMemo(() => {
-    if (!searchQuery.trim()) return characters;
-
-    const query = searchQuery.toLowerCase();
-    return characters.filter(
-      (character) =>
-        character.name.toLowerCase().includes(query) ||
-        character.description?.toLowerCase().includes(query),
-    );
-  }, [characters, searchQuery]);
 
   const handleCharacterClick = (character: Character) => {
     if (onCharacterSelect) {
       onCharacterSelect(character);
       setOpen(false);
-      setSearchQuery("");
       return;
     }
 
     setOpen(false);
-    setSearchQuery("");
     router.push(`/${character.id}`);
   };
 
-  const SearchContent = () => (
-    <div className="flex flex-col space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-        <Input
-          placeholder={t("search_characters")}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-          autoFocus
-        />
-        {searchQuery && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-            onClick={() => setSearchQuery("")}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-
-      <div className="space-y-2 md:max-h-64 overflow-y-auto">
-        {filteredCharacters.length === 0 ? (
+  const CharacterListContent = () => (
+    <div className="flex flex-col">
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        {characters.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            {searchQuery ? t("no_characters_found") : t("no_characters")}
+            {t("no_characters")}
           </div>
         ) : (
-          filteredCharacters.map((character) => (
+          characters.map((character) => (
             <button
               key={character.id}
               type="button"
@@ -120,7 +84,7 @@ export function CharacterSearch({
       variant="ghost"
       size="icon"
       className="rounded-full"
-      aria-label={t("search_characters")}
+      aria-label={t("select_character")}
     >
       <Search className="h-5 w-5" />
     </Button>
@@ -132,9 +96,9 @@ export function CharacterSearch({
         <DialogTrigger asChild>{trigger}</DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t("search_characters")}</DialogTitle>
+            <DialogTitle>{t("select_character")}</DialogTitle>
           </DialogHeader>
-          <SearchContent />
+          <CharacterListContent />
         </DialogContent>
       </Dialog>
     );
@@ -148,12 +112,12 @@ export function CharacterSearch({
       shouldScaleBackground
     >
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-      <DrawerContent>
+      <DrawerContent className="max-h-[80vh]">
         <DrawerHeader className="text-left">
-          <DrawerTitle>{t("search_characters")}</DrawerTitle>
+          <DrawerTitle>{t("select_character")}</DrawerTitle>
         </DrawerHeader>
-        <div className="px-4 pb-4">
-          <SearchContent />
+        <div className="px-4 pb-4 overflow-hidden">
+          <CharacterListContent />
         </div>
       </DrawerContent>
     </Drawer>
