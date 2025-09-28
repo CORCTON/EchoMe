@@ -25,11 +25,13 @@ interface FileState {
 interface ImageUploaderProps {
   onUploadComplete: (fileUrls: string[]) => void;
   initialFileUrls?: string[] | null;
+  onUploadStatusChange?: (isUploading: boolean) => void;
 }
 
 export function ImageUploader({
   onUploadComplete,
   initialFileUrls,
+  onUploadStatusChange,
 }: ImageUploaderProps) {
   const t = useTranslations("home");
   const [files, setFiles] = useState<FileState[]>([]);
@@ -118,6 +120,11 @@ export function ImageUploader({
       const maxFiles = 3;
       let processedFileCount = 0;
 
+      // 通知开始上传
+      if (uploadPromises.length > 0 || processedFileCount > 0) {
+        onUploadStatusChange?.(true);
+      }
+
       for (const file of Array.from(selectedFiles)) {
         if (currentFileCount + processedFileCount >= maxFiles) {
           console.warn(`Cannot upload more than ${maxFiles} files.`);
@@ -173,6 +180,11 @@ export function ImageUploader({
         }
       }
 
+      // 通知开始上传
+      if (uploadPromises.length > 0) {
+        onUploadStatusChange?.(true);
+      }
+
       setFiles((prev) => [...prev, ...newFileStates]);
 
       Promise.all(uploadPromises).then((urls) => {
@@ -180,12 +192,17 @@ export function ImageUploader({
         // 避免在渲染期间执行父组件 setState：将回调放到微任务队列中异步执行
         const initial = initialFileUrls ?? [];
         const finalUrls = [...initial, ...successful];
-        queueMicrotask(() => onUploadComplete(finalUrls));
+        queueMicrotask(() => {
+          onUploadComplete(finalUrls);
+          // 通知上传完成
+          onUploadStatusChange?.(false);
+        });
       });
     },
     [
       pdfjsLoaded,
       onUploadComplete,
+      onUploadStatusChange,
       doUpload,
       files.length,
       makeFileState,
