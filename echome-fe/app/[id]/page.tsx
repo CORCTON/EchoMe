@@ -1,17 +1,11 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { getCharacters } from "@/services/character";
 
 import { useVadStore } from "@/store/vad";
 import { VoiceActivity } from "@/types/vad";
-import {
-  useVoiceConversation,
-  type MessageContent as MessageContentType,
-  type TextContent,
-} from "@/store/voice-conversation";
+import { useVoiceConversation } from "@/store/voice-conversation";
 import { useCharacterStore } from "@/store/character";
-import type { FileObject } from "@/store/file";
 
 import {
   Message,
@@ -21,7 +15,7 @@ import {
 } from "@/components/ui/message";
 import { MessageActionsComponent } from "@/components/ui/message-actions";
 import { AudioAnimation } from "@/components/AudioAnimation";
-import { cn, getMimeTypeFromUrl } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { Loader } from "@/components/ui/loader";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,8 +27,6 @@ export default function Page() {
   const {
     currentCharacter,
     setCurrentCharacter,
-    modelSettings,
-    setCharacters: setStoreCharacters,
   } = useCharacterStore();
 
   const [isConversationStarted, setIsConversationStarted] = useState(false);
@@ -44,14 +36,8 @@ export default function Page() {
   const [userHasScrolled, setUserHasScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const {
-    isVadReady,
-    voiceActivity,
-    transcript,
-    initVad,
-    resetTranscript,
-    forceEndSpeech,
-  } = useVadStore();
+  const { isVadReady, voiceActivity, transcript, initVad, resetTranscript } =
+    useVadStore();
   const {
     history,
     start,
@@ -63,23 +49,13 @@ export default function Page() {
     connection,
     editMessage,
     isResponding,
-    clear: clearHistory,
-    setFiles,
   } = useVoiceConversation();
 
   useEffect(() => {
-    const fetchCharacters = async () => {
-      try {
-        const response = await getCharacters();
-        if (response.success) {
-          setStoreCharacters(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch characters", error);
-      }
-    };
-    fetchCharacters();
-  }, [setStoreCharacters]);
+    if (characterId) {
+      setCurrentCharacter(characterId);
+    }
+  }, [characterId, setCurrentCharacter]);
 
   useEffect(() => {
     const onSpeechEnd = (transcript: string) => {
@@ -90,10 +66,7 @@ export default function Page() {
         const messages = [
           {
             role: "system" as const,
-            content:
-              modelSettings.rolePrompt ||
-              currentCharacter?.prompt ||
-              "You are a helpful assistant.",
+            content: currentCharacter?.prompt || "You are a helpful assistant.",
           },
           ...latestHistory,
         ];
@@ -117,38 +90,15 @@ export default function Page() {
     resetTranscript,
     resumeAudio,
     currentCharacter,
-    modelSettings.rolePrompt,
   ]);
 
   useEffect(() => {
-    if (isVadReady && characterId) {
-      setCurrentCharacter(characterId);
-      clearHistory();
-
-      // 设置文件
-      const filesToSet: FileObject[] = (modelSettings.fileUrls || []).map(
-        (url) => ({
-          url,
-          name: url.split("/").pop() || "file",
-          type: getMimeTypeFromUrl(url),
-        }),
-      );
-      setFiles(filesToSet);
-
+    if (isVadReady && !isConversationStarted && characterId) {
       resumeAudio();
       connectLLM(characterId);
       setIsConversationStarted(true);
     }
-  }, [
-    isVadReady,
-    characterId,
-    resumeAudio,
-    connectLLM,
-    setCurrentCharacter,
-    clearHistory,
-    modelSettings.fileUrls,
-    setFiles,
-  ]);
+  }, [isVadReady, isConversationStarted, characterId, resumeAudio, connectLLM]);
 
   useEffect(() => {
     if (scrollRef.current && !userHasScrolled) {
@@ -186,12 +136,6 @@ export default function Page() {
   }, [isVadReady, isConversationStarted]);
 
   const t = useTranslations("home");
-
-  const handleInterrupt = () => {
-    if (voiceActivity === VoiceActivity.Speaking) {
-      forceEndSpeech();
-    }
-  };
 
   const animationActivity = useMemo(() => {
     if (isResponding) {
@@ -262,8 +206,7 @@ export default function Page() {
             {history
               .filter((msg) => msg.role !== "system")
               .map((msg, index) => {
-                const isLastAssistantMessage =
-                  msg.role === "assistant" &&
+                const isLastAssistantMessage = msg.role === "assistant" &&
                   index ===
                     history.filter((m) => m.role !== "system").length - 1;
                 const originalMessageIndex = history.indexOf(msg);
@@ -273,20 +216,18 @@ export default function Page() {
                   setEditingMessageIndex(null);
 
                   setTimeout(() => {
-                    const { history: updatedHistory } =
-                      useVoiceConversation.getState();
+                    const { history: updatedHistory } = useVoiceConversation
+                      .getState();
                     if (characterId && currentCharacter) {
                       const messages = [
                         {
                           role: "system" as const,
-                          content:
-                            modelSettings.rolePrompt ||
-                            currentCharacter?.prompt ||
+                          content: currentCharacter?.prompt ||
                             "You are a helpful assistant.",
                         },
                         ...updatedHistory,
                       ];
-                      start({ messages });
+                      start({ characterId, messages });
                     }
                   }, 100);
                 };
@@ -312,35 +253,37 @@ export default function Page() {
                         msg.role === "user" ? "max-w-[70%]" : "flex-1 min-w-0",
                       )}
                     >
-                      {editingMessageIndex === originalMessageIndex ? (
-                        <Textarea
-                          className="min-w-[40vh]"
-                          defaultValue={getTextFromContent(msg.content)}
-                          ref={(input) => input?.focus()}
-                          onBlur={(e) => handleSaveEdit(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              handleSaveEdit(e.currentTarget.value);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <MessageContent
-                          id={`msg-${originalMessageIndex}-${msg.role}`}
-                          markdown
-                          className={cn(
-                            {
-                              "bg-white": msg.role === "user",
-                            },
-                            {
-                              "bg-transparent p-0": msg.role === "assistant",
-                            },
-                          )}
-                        >
-                          {getTextFromContent(msg.content)}
-                        </MessageContent>
-                      )}
+                      {editingMessageIndex === originalMessageIndex
+                        ? (
+                          <Textarea
+                            className="min-w-[40vh]"
+                            defaultValue={msg.content}
+                            ref={(input) => input?.focus()}
+                            onBlur={(e) => handleSaveEdit(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSaveEdit(e.currentTarget.value);
+                              }
+                            }}
+                          />
+                        )
+                        : (
+                          <MessageContent
+                            id={`msg-${originalMessageIndex}-${msg.role}`}
+                            markdown
+                            className={cn(
+                              {
+                                "bg-white": msg.role === "user",
+                              },
+                              {
+                                "bg-transparent p-0": msg.role === "assistant",
+                              },
+                            )}
+                          >
+                            {msg.content}
+                          </MessageContent>
+                        )}
                       <MessageActions
                         className={cn("self-end", {
                           "self-start": msg.role === "assistant",
@@ -351,8 +294,7 @@ export default function Page() {
                           messageRole={msg.role as "user" | "assistant"}
                           isLastAssistantMessage={isLastAssistantMessage}
                           onEdit={() =>
-                            setEditingMessageIndex(originalMessageIndex)
-                          }
+                            setEditingMessageIndex(originalMessageIndex)}
                         />
                       </MessageActions>
                     </div>
@@ -380,44 +322,21 @@ export default function Page() {
             isConversationStarted &&
             animationActivity === VoiceActivity.Idle &&
             history.length === 0 && (
-              <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-                <p className="text-lg text-gray-600">{t("say_something")}</p>
-              </div>
-            )}
+            <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
+              <p className="text-lg text-gray-600">{t("say_something")}</p>
+            </div>
+          )}
 
-          <button
-            type="button"
+          <div
             className={cn(
-              "absolute bottom-10 left-1/2 -translate-x-1/2 w-40 h-40 transition-opacity duration-300 ease-in-out cursor-pointer pointer-events-auto",
+              "absolute bottom-10 left-1/2 -translate-x-1/2 w-40 h-40 transition-opacity duration-300 ease-in-out",
               { "opacity-0": !isVadReady },
             )}
-            onClick={handleInterrupt}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleInterrupt();
-              }
-            }}
           >
             <AudioAnimation activity={animationActivity} />
-            {voiceActivity === VoiceActivity.Speaking && (
-              <p className="text-xs text-center text-gray-500 mt-2">
-                {t("tap_to_interrupt")}
-              </p>
-            )}
-          </button>
+          </div>
         </div>
       </div>
     </div>
   );
-}
-
-function getTextFromContent(content: MessageContentType): string {
-  if (typeof content === "string") {
-    return content;
-  }
-  const textPart = content.find((part) => part.type === "text") as
-    | TextContent
-    | undefined;
-  return textPart?.text || "";
 }

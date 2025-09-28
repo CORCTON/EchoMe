@@ -1,10 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "@/styles/globals.css";
 import { getLocale, getMessages, getTimeZone } from "next-intl/server";
 import { Providers } from "./provider";
 
 export const metadata: Metadata = {
   title: "EchoMe",
+};
+
+// 禁用缩放
+export const viewport: Viewport = {
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default async function RootLayout({
