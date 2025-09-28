@@ -51,6 +51,7 @@ export function ModelSettingsDrawer({
   });
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const checkIsDesktop = () => {
@@ -145,6 +146,7 @@ export function ModelSettingsDrawer({
                 });
               });
             }}
+            onUploadStatusChange={setIsUploading}
           />
 
           {/* 联网功能设置 */}
@@ -214,18 +216,20 @@ export function ModelSettingsDrawer({
           <div className="w-full bg-transparent space-y-2">
             <Button
               onClick={handleReady}
+              disabled={isUploading}
               className="w-full cursor-pointer rounded-2xl"
               size="lg"
             >
-              {t("ready_button")}
+              {isUploading ? "文件上传中..." : t("ready_button")}
             </Button>
             <Button
               onClick={handleGoToTestPage}
+              disabled={isUploading}
               variant="outline"
               className="w-full cursor-pointer rounded-2xl"
               size="lg"
             >
-              进入测试页面
+              {isUploading ? "文件上传中..." : "进入测试页面"}
             </Button>
           </div>
         </DrawerFooter>
