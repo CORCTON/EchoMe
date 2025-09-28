@@ -30,8 +30,12 @@ graph TB
             WS_SERVICE[WebSocket 服务]
             UPLOAD[文件上传服务]
         end
-        
-        subgraph "媒体处理层"
+     #### 🔧 核心技术特性
+- **WebSocket双通道**: ASR识别和主要数据传输分离处理
+- **实时流处理**: LLM文本流和TTS音频流的并行处理架构
+- **前端多媒体**: PDF.js转换、OSS直传、Web Audio音频处理
+- **多模态AI**: 集成图像识别、联网搜索、实时语音合成
+- **流式响应**: 所有AI服务都采用流式处理，最小化延迟       subgraph "媒体处理层"
             VAD[ONNX VAD 引擎]
             PDFJS[PDF.js 文档处理]
             AUDIO[Web Audio API]
@@ -42,7 +46,6 @@ graph TB
     subgraph "网络通信层"
         HTTP[RESTful API]
         WS[WebSocket 实时通信]
-        CDN[阿里云 CDN]
     end
     
     subgraph "后端服务 - 洋葱架构"
@@ -90,12 +93,11 @@ graph TB
     VAD --> AUDIO
     PDFJS --> UPLOAD
     UPLOAD --> OSS_CLIENT
-    OSS_CLIENT --> CDN
+    OSS_CLIENT --> ALI_OSS
     
     %% 网络连接
     HTTP --> APP
     WS --> WS_HANDLER
-    CDN --> ALI_OSS
     
     %% 后端内部连接 (Wire DI)
     APP --> CHAR_HANDLER
@@ -116,38 +118,252 @@ graph TB
     AI_SERVICE --> TAVILY
 ```
 
-### 数据流与通信模式
+### 核心数据流与通信模式
+
+#### 实时语音对话架构
 ```mermaid
 sequenceDiagram
-    participant U as 用户界面
+    participant U as 前端界面
     participant V as VAD引擎
-    participant W as WebSocket
-    participant A as AI服务
-    participant T as TTS引擎
-    participant D as 数据库
+    participant WS1 as WebSocket(ASR)
+    participant BE as 后端服务
+    participant ASR as 阿里云ASR
+    participant LLM as 大语言模型
+    participant TTS as Real-time TTS
+    participant WS2 as WebSocket(主通道)
+    participant TAV as Tavily搜索
+    participant MM as 多模态模型
     
-    Note over U,D: 实时语音对话流程
+    Note over U,MM: 🎤 实时语音识别流程
+    U->>V: 用户开始说话
+    V->>V: ONNX VAD 检测语音活动
+    V->>WS1: 发送音频帧 (PCM)
+    WS1->>BE: 转发音频数据
+    BE->>ASR: 调用阿里云实时ASR
+    ASR-->>BE: 返回增量识别文本
+    BE-->>WS1: 转发ASR结果
+    WS1-->>U: 实时显示识别文本
     
-    U->>V: 开始录音
-    V->>V: ONNX模型检测语音
-    V->>W: 发送音频帧
-    W->>A: 流式ASR识别
-    A->>U: 返回增量文本
-    A->>A: LLM处理 + Tavily搜索
-    A->>T: 生成语音请求
-    T->>W: 流式音频数据
-    W->>U: 播放合成语音
-    A->>D: 保存对话历史
+    Note over U,MM: 🧠 LLM处理与实时TTS
+    U->>WS2: 发送完整对话请求
+    WS2->>BE: 接收用户文本
+    BE->>TAV: 联网搜索增强上下文
+    TAV-->>BE: 返回搜索结果
+    BE->>LLM: 发送增强后的Prompt
     
-    Note over U,D: 角色管理流程
+    loop LLM流式输出
+        LLM-->>BE: 输出文本token流
+        par 双路实时转发
+            BE-->>WS2: 转发文本流给前端
+            BE->>TTS: 同时发送给Real-time TTS
+        end
+        WS2-->>U: 实时显示AI回复文本
+        TTS-->>BE: 返回音频二进制流
+        BE-->>WS2: 转发音频流
+        WS2-->>U: 实时播放合成语音
+    end
     
-    U->>U: PDF.js处理文档
-    U->>OSS: 上传多媒体文件
-    U->>W: 创建角色请求
-    W->>A: 调用阿里云API
-    A->>D: 存储角色数据
-    D->>U: 返回角色信息
+    Note over U,MM: 📄 多模态内容处理
+    U->>U: PDF.js转换文档为图像
+    U->>OSS: 直接上传图像文件
+    U->>WS2: 发送图像分析请求
+    WS2->>BE: 转发图像数据
+    BE->>MM: 调用多模态大模型
+    MM-->>BE: 返回图像理解结果
+    BE-->>WS2: 转发分析结果
+    WS2-->>U: 显示图像理解内容
 ```
+
+#### 系统核心处理流程
+```mermaid
+flowchart TD
+    subgraph "前端核心处理"
+        A1[VAD 语音活动检测] --> A2[音频帧采集]
+        A2 --> A3[WebSocket ASR通道]
+        
+        B1[PDF.js 文档处理] --> B2[页面转图像]
+        B2 --> B3[直接上传 OSS]
+        
+        C1[音频流接收] --> C2[Web Audio API]
+        C2 --> C3[实时音频播放]
+    end
+    
+    subgraph "后端核心处理"
+        D1[WebSocket 连接管理] --> D2[音频数据转发]
+        D2 --> D3[阿里云 ASR]
+        
+        E1[文本接收] --> E2[Tavily 联网搜索]
+        E2 --> E3[上下文增强]
+        E3 --> E4[LLM 处理]
+        
+        F1[LLM 流式输出] --> F2[双路实时转发]
+        F2 --> F3[前端文本流]
+        F2 --> F4[Real-time TTS]
+        F4 --> F5[音频流转发]
+        
+        G1[图像数据] --> G2[多模态大模型]
+        G2 --> G3[图像理解结果]
+    end
+    
+    subgraph "外部AI服务"
+        ASR_SVC[阿里云 ASR]
+        TTS_SVC[Real-time TTS]
+        LLM_SVC[大语言模型]
+        MM_SVC[多模态模型]
+        TAV_SVC[Tavily API]
+        OSS_SVC[阿里云 OSS]
+    end
+    
+    A3 --> D1
+    D3 --> ASR_SVC
+    B3 --> OSS_SVC
+    E4 --> LLM_SVC
+    F4 --> TTS_SVC
+    G2 --> MM_SVC
+    E2 --> TAV_SVC
+    
+    F3 --> C1
+    F5 --> C1
+```
+
+### 业务架构与功能模块
+```mermaid
+graph TB
+    subgraph "用户交互层"
+        USER[用户]
+        WEB_UI[Web 界面]
+    end
+    
+    subgraph "核心业务模块"
+        subgraph "角色管理"
+            CREATE_CHAR[创建AI角色]
+            CONFIG_CHAR[配置角色属性]
+            MANAGE_CHAR[管理角色库]
+            TRAIN_VOICE[语音训练]
+        end
+        
+        subgraph "对话系统"
+            VOICE_CHAT[语音对话]
+            TEXT_CHAT[文本对话]
+            CONTEXT_MGT[上下文管理]
+            HISTORY[对话历史]
+        end
+        
+        subgraph "内容处理"
+            DOC_UPLOAD[文档上传]
+            PDF_PARSE[PDF解析]
+            IMG_MANAGE[图片管理]
+            MEDIA_STORE[媒体存储]
+        end
+        
+        subgraph "智能搜索"
+            WEB_SEARCH[网络搜索]
+            INFO_ENHANCE[信息增强]
+            KNOWLEDGE[知识库]
+        end
+    end
+    
+    subgraph "AI服务能力"
+        subgraph "语音处理"
+            VAD_DETECT[语音检测]
+            ASR[语音识别] 
+            TTS[语音合成]
+            VOICE_CLONE[语音克隆]
+        end
+        
+        subgraph "语言理解"
+            NLU[自然语言理解]
+            LLM[大语言模型]
+            INTENT[意图识别]
+            RESPONSE[智能回复]
+        end
+        
+        subgraph "多模态理解"
+            TEXT_PROCESS[文本处理]
+            IMAGE_PROCESS[图像理解]
+            DOC_ANALYZE[文档分析]
+        end
+    end
+    
+    subgraph "数据层"
+        USER_DATA[(用户数据)]
+        CHAR_DATA[(角色数据)]
+        CONV_DATA[(对话数据)]
+        MEDIA_DATA[(媒体文件)]
+    end
+    
+    %% 用户交互流程
+    USER --> WEB_UI
+    WEB_UI --> CREATE_CHAR
+    WEB_UI --> VOICE_CHAT
+    WEB_UI --> DOC_UPLOAD
+    
+    %% 角色管理业务流程
+    CREATE_CHAR --> CONFIG_CHAR
+    CONFIG_CHAR --> TRAIN_VOICE
+    TRAIN_VOICE --> VOICE_CLONE
+    CONFIG_CHAR --> CHAR_DATA
+    MANAGE_CHAR --> CHAR_DATA
+    
+    %% 对话业务流程
+    VOICE_CHAT --> VAD_DETECT
+    VAD_DETECT --> ASR
+    ASR --> NLU
+    NLU --> LLM
+    LLM --> WEB_SEARCH
+    WEB_SEARCH --> INFO_ENHANCE
+    INFO_ENHANCE --> RESPONSE
+    RESPONSE --> TTS
+    TTS --> VOICE_CHAT
+    
+    TEXT_CHAT --> NLU
+    VOICE_CHAT --> CONTEXT_MGT
+    TEXT_CHAT --> CONTEXT_MGT
+    CONTEXT_MGT --> HISTORY
+    HISTORY --> CONV_DATA
+    
+    %% 内容处理业务流程
+    DOC_UPLOAD --> PDF_PARSE
+    PDF_PARSE --> DOC_ANALYZE
+    DOC_ANALYZE --> TEXT_PROCESS
+    IMG_MANAGE --> IMAGE_PROCESS
+    DOC_UPLOAD --> MEDIA_STORE
+    MEDIA_STORE --> MEDIA_DATA
+    
+    %% 知识增强流程
+    WEB_SEARCH --> KNOWLEDGE
+    KNOWLEDGE --> INFO_ENHANCE
+    DOC_ANALYZE --> KNOWLEDGE
+    
+    %% 数据存储
+    USER --> USER_DATA
+    CONTEXT_MGT --> CONV_DATA
+```
+
+### 业务流程说明
+
+#### 🎭 AI角色生命周期
+1. **角色创建**: 用户定义角色基本信息和个性特征
+2. **属性配置**: 设置系统提示词、行为模式、专业领域
+3. **语音训练**: 上传示例音频，训练专属语音模型  
+4. **角色部署**: 角色就绪，可参与对话交互
+5. **持续优化**: 根据对话反馈调整角色表现
+
+#### 🗣️ 实时对话处理流程
+1. **语音检测**: 前端VAD引擎实时检测语音活动边界
+2. **实时转录**: 独立WebSocket通道进行流式ASR识别
+3. **联网增强**: 后端使用Tavily API获取最新信息
+4. **LLM处理**: 大语言模型基于角色人设生成回复
+5. **双路转发**: LLM输出流同时转发给前端和Real-time TTS
+6. **实时合成**: Real-time TTS生成高质量音频流
+7. **音频播放**: 前端Web Audio API处理音频播放逻辑
+
+#### 📄 多模态内容处理流程
+1. **文档预处理**: 前端PDF.js将PDF文档转换为高清图像
+2. **直接上传**: 图像文件直接上传到阿里云OSS存储
+3. **多模态理解**: 后端调用多模态大模型进行图像识别分析
+4. **内容提取**: 自动识别文档结构、文字、图表等关键信息
+5. **知识整合**: 提取的内容融入对话上下文和角色知识体系
 
 ## 🛠️ 技术栈
 
@@ -478,42 +694,47 @@ go run tools/migrate.go
 - **错误恢复机制**: 连接中断自动重连，音频缓冲防止数据丢失
 - **状态同步**: 前后端实时同步对话状态和角色信息
 
-### 集成的 AI 服务
+### 核心 AI 服务架构
 
-#### 🎤 语音识别 (ASR)
-- **阿里云实时语音识别**: 
-  - 支持中英文混合识别
-  - 流式识别，低延迟响应
-  - 自动标点符号添加
-  - 语音端点自动检测
+#### 🎤 实时语音处理链路
+- **阿里云 ASR**: 
+  - 独立WebSocket通道处理音频流
+  - 支持中英文实时识别
+  - 流式输出，毫秒级响应
+  - 前端VAD配合精确控制识别边界
 
-#### 🤖 大语言模型 (LLM)
-- **多模型支持**: 兼容 OpenAI API 格式
-- **角色个性化**: System Prompt 驱动的角色扮演
-- **上下文管理**: 完整的对话历史维护
-- **搜索增强**: Tavily API 提供实时信息
+#### � LLM 双路流式处理
+- **流式文本生成**: 大语言模型实时输出token流
+- **双路转发架构**: 
+  - 路径1：实时转发给前端显示
+  - 路径2：同步发送给Real-time TTS
+- **Tavily联网增强**: 为LLM提供最新网络信息
+- **角色人设驱动**: System Prompt定制化角色行为
 
-#### 🔊 语音合成 (TTS)
-- **阿里云语音合成**:
-  - 支持角色语音克隆和训练
-  - 多种预设角色声音
-  - 情感表达和语速控制
-  - 实时流式音频生成
+#### 🔊 Real-time TTS 音频合成
+- **实时语音合成**: 接收LLM流式输出，即时生成音频
+- **流式音频传输**: 生成的音频流实时转发给前端
+- **语音克隆支持**: 支持个性化角色语音训练
+- **低延迟优化**: 最小化从文本到语音的处理时间
 
-#### 🌐 智能搜索
-- **Tavily AI 搜索**:
-  - 实时网络信息获取
-  - 搜索结果智能摘要
-  - 自动集成到对话上下文
-  - 支持多语言搜索查询
+#### 🖼️ 多模态内容理解
+- **图像识别**: 多模态大模型处理PDF转换的图像
+- **文档理解**: 自动提取文档结构和关键信息
+- **前端预处理**: PDF.js在客户端完成文档到图像转换
+- **直接存储**: 图像文件直传阿里云OSS，避免服务器中转
+
+#### 🌐 联网搜索增强
+- **Tavily API集成**: 实时获取网络最新信息
+- **上下文增强**: 搜索结果自动融入对话上下文
+- **知识更新**: 为AI角色提供实时信息获取能力
 
 ### 主要特性
 
 #### 🎤 实时语音交互
-- **低延迟音频处理**: Web Audio API + WebSocket 优化
-- **智能语音检测**: ONNX VAD 模型精确识别语音边界
-- **流式语音识别**: 增量 ASR 结果，实时文本反馈
-- **音频预缓冲**: 防止语音开头丢失的缓冲机制
+- **前端VAD处理**: ONNX模型在浏览器端精确检测语音活动
+- **独立ASR通道**: 专用WebSocket连接处理实时语音识别
+- **双路流式架构**: LLM输出同时转发给前端显示和Real-time TTS
+- **端到端音频**: 前端负责音频采集、播放和核心音频逻辑处理
 
 #### 🎨 现代 UI/UX
 - **响应式设计**: 移动端优先，完美适配各种设备
