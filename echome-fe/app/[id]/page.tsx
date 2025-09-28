@@ -105,10 +105,11 @@ export default function Page() {
     initVad(onSpeechEnd);
     return () => {
       // 停止播放并断开连接
-      const { stopPlaying, disconnect: disconnectLLM } = useVoiceConversation.getState();
+      const { stopPlaying, disconnect: disconnectLLM } =
+        useVoiceConversation.getState();
       stopPlaying();
       disconnectLLM();
-      
+
       // 断开VAD
       const { disconnect: disconnectVad } = useVadStore.getState();
       disconnectVad();
@@ -390,7 +391,7 @@ export default function Page() {
             )}
 
           {/** biome-ignore lint/a11y/useSemanticElements: 需要嵌套button*/}
-<div
+          <div
             role="button"
             tabIndex={0}
             className={cn(
@@ -404,7 +405,11 @@ export default function Page() {
                 handleInterrupt();
               }
             }}
-            aria-label={voiceActivity === VoiceActivity.Speaking ? t("tap_to_interrupt") : undefined}
+            aria-label={
+              voiceActivity === VoiceActivity.Speaking
+                ? t("tap_to_interrupt")
+                : undefined
+            }
           >
             <AudioAnimation activity={animationActivity} />
             {voiceActivity === VoiceActivity.Speaking && (

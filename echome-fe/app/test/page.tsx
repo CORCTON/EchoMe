@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import {
   useVoiceConversation,
@@ -24,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 export default function Page() {
+  const t = useTranslations("test");
   const { modelSettings, currentCharacter } = useCharacterStore();
   const characterId = currentCharacter?.id;
   const { setFiles } = useFileStore();
@@ -110,6 +112,11 @@ export default function Page() {
 
   const handleSendMessage = () => {
     if (input.trim()) {
+      // 如果正在播放，先打断
+      if (isPlaying) {
+        interrupt();
+      }
+
       pushUserMessage(input);
       const latestHistory = useVoiceConversation.getState().history;
       const messages = [
@@ -150,6 +157,17 @@ export default function Page() {
     }
   }, [connection]);
 
+  const connectionStatusText = useMemo(() => {
+    switch (connection) {
+      case "connected":
+        return t("connected");
+      case "connecting":
+        return t("connecting");
+      default:
+        return t("disconnected");
+    }
+  }, [connection, t]);
+
   return (
     <div className=" bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-900 dark:to-slate-800  flex items-center justify-center w-full border-none">
       <div className="w-full h-[100dvh] flex flex-col justify-center items-center relative">
@@ -166,7 +184,9 @@ export default function Page() {
                       "w-3 h-3 rounded-full transition-colors duration-300",
                       connectionStatusColor,
                     )}
-                    title={`Connection: ${connection}`}
+                    title={t("connection_status", {
+                      status: connectionStatusText,
+                    })}
                   />
                 </div>
               </div>
@@ -297,13 +317,10 @@ export default function Page() {
                 handleSendMessage();
               }
             }}
-            placeholder="Type your message..."
+            placeholder={t("type_message")}
             className="flex-1"
           />
-          <Button onClick={handleSendMessage}>Send</Button>
-          <Button onClick={interrupt} variant="destructive">
-            Interrupt
-          </Button>
+          <Button onClick={handleSendMessage}>{t("send")}</Button>
         </div>
       </div>
     </div>

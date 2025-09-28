@@ -1,0 +1,9 @@
+{
+  "type_message": "输入您的消息...",
+  "send": "发送",
+  "interrupt": "打断",
+  "connection_status": "连接状态: {status}",
+  "connected": "已连接",
+  "connecting": "连接中",
+  "disconnected": "已断开"
+}
