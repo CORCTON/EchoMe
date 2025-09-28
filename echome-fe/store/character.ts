@@ -30,7 +30,9 @@ export const useCharacterStore = create(
           if (state.currentCharacter?.id === id) {
             return state;
           }
-          const character = state.characters.find((c: Character) => c.id === id);
+          const character = state.characters.find(
+            (c: Character) => c.id === id,
+          );
           return { currentCharacter: character || null };
         }),
       updateModelSettings: (settings: ModelSettings) => {
