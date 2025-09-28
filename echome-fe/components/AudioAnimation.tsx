@@ -72,10 +72,10 @@ export function AudioAnimation({ activity }: AudioAnimationProps) {
   }, [machineNumber, rive]);
 
   return (
-    <div className="relative">
+    <div className="relative w-full h-full">
       <button
         type="button"
-        className="relative cursor-pointer select-none bg-transparent border-none p-0 w-full h-full"
+        className="relative cursor-pointer select-none bg-transparent border-none p-0 w-full h-full block"
         onClick={handleInterrupt}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -86,8 +86,11 @@ export function AudioAnimation({ activity }: AudioAnimationProps) {
         disabled={activity !== VoiceActivity.Speaking}
         title={activity === VoiceActivity.Speaking ? t("tap_to_interrupt") : undefined}
         aria-label={activity === VoiceActivity.Speaking ? t("tap_to_interrupt") : undefined}
+        style={{ minWidth: '100%', minHeight: '100%' }}
       >
-        <RiveComponent />
+        <div className="w-full h-full">
+          <RiveComponent />
+        </div>
         {activity === VoiceActivity.Speaking && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="bg-black/50 text-white text-xs px-2 py-1 rounded-md opacity-0 hover:opacity-100 transition-opacity duration-200">
