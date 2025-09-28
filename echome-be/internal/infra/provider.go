@@ -2,19 +2,19 @@ package infra
 
 import (
 	"github.com/google/wire"
-	"github.com/justin/echome-be/gen/gen/query"
-	"github.com/justin/echome-be/internal/domain"
-	"gorm.io/gorm"
+	"github.com/justin/echome-be/internal/domain/ai"
+	dc "github.com/justin/echome-be/internal/domain/character"
+	"github.com/justin/echome-be/internal/infra/aliyun"
+	"github.com/justin/echome-be/internal/infra/character"
+	"github.com/justin/echome-be/internal/infra/db"
 )
 
+// RepositoryProviderSet 包含所有仓库提供者
 var RepositoryProviderSet = wire.NewSet(
-	NewDB,
-	ProvideQuery,
-	NewCharacterRepository,
-	wire.Bind(new(domain.CharacterRepository), new(*CharacterRepository)),
+	db.NewDB,
+	db.NewQuery,
+	character.NewCharacterRepository,
+	wire.Bind(new(dc.Repo), new(*character.CharacterRepository)),
+	aliyun.ProvideAliClient,
+	wire.Bind(new(ai.Repo), new(*aliyun.AliClient)),
 )
-
-// ProvideQuery 提供query.Query实例给CharacterRepository
-func ProvideQuery(db *DB[*gorm.DB]) *query.Query {
-	return GetQuery()
-}

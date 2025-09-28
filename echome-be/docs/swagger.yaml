@@ -1,7 +1,10 @@
 basePath: /api
 definitions:
-  domain.Character:
+  character.Character:
     properties:
+      audio_example:
+        description: AudioExample 音色示例音频URL
+        type: string
       avatar:
         description: 角色头像URL
         type: string
@@ -30,7 +33,7 @@ definitions:
         description: 角色音色
         type: string
     type: object
-  interfaces.CreateCharacterRequest:
+  handler.CreateCharacterRequest:
     properties:
       audio:
         description: 可选，音频文件
@@ -75,7 +78,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/interfaces.CreateCharacterRequest'
+          $ref: '#/definitions/handler.CreateCharacterRequest'
       produces:
       - application/json
       responses:
@@ -108,7 +111,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/domain.Character'
+              $ref: '#/definitions/character.Character'
             type: array
       summary: 获取所有角色
       tags:
@@ -130,7 +133,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/domain.Character'
+            $ref: '#/definitions/character.Character'
       summary: 获取角色详情
       tags:
       - characters
@@ -167,38 +170,6 @@ paths:
               type: string
             type: object
       summary: 语音对话WebSocket连接
-      tags:
-      - websocket
-  /ws/webrtc/{sessionId}/{userId}:
-    get:
-      description: 建立WebRTC信令的WebSocket连接，用于点对点通信
-      parameters:
-      - description: 会话ID
-        in: path
-        name: sessionId
-        required: true
-        type: string
-      - description: 用户ID
-        in: path
-        name: userId
-        required: true
-        type: string
-      responses:
-        "101":
-          description: Switching Protocols
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: WebRTC信令WebSocket连接
       tags:
       - websocket
 swagger: "2.0"

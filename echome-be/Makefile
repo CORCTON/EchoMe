@@ -23,7 +23,7 @@ build:
 
 # 运行应用程序
 run:
-	go run ./cmd/api -f $(CONFIG_PATH)
+	go run ./cmd/main -f $(CONFIG_PATH)
 
 # 构建并运行应用程序
 build-run: build
@@ -35,7 +35,7 @@ wire:
 
 # 生成 swag 文档
 swag:
-	swag init -g cmd/api/main.go
+	swag init -g cmd/main/main.go
 
 # 清理构建产物
 clean:
