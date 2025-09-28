@@ -478,28 +478,114 @@ OSS_ACCESS_KEY_SECRET=your-secret-key
 ```yaml
 server:
   port: "8080"
-
-ai:
-  service_type: "aliyun"
-  timeout: 30
-
-aliyun:
-  region: "cn-hangzhou"
-  access_key_id: "your-access-key"
-  access_key_secret: "your-secret-key"
-  app_key: "your-app-key"
-
-database:
+datebase:
   host: "localhost"
-  port: 5432
-  user: "postgres"
-  password: "your-password"
-  dbname: "echome"
+  port: "5432"
+  user: "your_db_user"
+  password: "your_db_password"
+  db_name: "your_db_name"
+ai:
+  service_type: "alibailian"
+  timeout: 30
+  max_retries: 3
+tavily:
+  api_key: "your_tavily_api_key"
+aliyun:
+  api_key: "your-alibailian-api-key"
+  endpoint: "https://dashscope.aliyuncs.com"
+  region: "cn-beijing"
+  asr:
+    model: "paraformer-realtime-v2"
+    sample_rate: 16000
+    format: "pcm"
+    language_hints: ["zh", "en"]
+  tts:
+    model: "qwen-tts-realtime"
+    default_voice: "Cherry"
+    sample_rate: 24000
+    response_format: "pcm"
+  llm:
+    model: "qwen-turbo"
+    temperature: 0.7
+    max_tokens: 2000
 ```
 
----
+## Docker 部署
 
-## 🤝 贡献指南
+### 使用 Docker Compose
+```bash
+# 克隆项目
+git clone https://github.com/your-username/EchoMe.git
+cd EchoMe
+
+# 启动服务
+cd deploy
+docker-compose up -d
+```
+
+### 手动构建镜像
+```bash
+# 构建前端镜像
+cd echome-fe
+docker build -t echome-fe .
+
+# 构建后端镜像  
+cd ../echome-be
+docker build -t echome-be .
+```
+
+## CI/CD 部署
+
+项目支持 GitHub Actions 自动化部署：
+
+### 部署配置
+1. 在 GitHub 仓库设置中配置 Secrets：
+   - `SERVER_HOST`: 服务器地址
+   - `SERVER_USER`: SSH 用户名  
+   - `SERVER_PASSWORD`: SSH 密码
+   - `SERVER_PORT`: SSH 端口 (默认 22)
+
+2. 推送到 main 分支自动触发部署
+3. 支持手动触发部署：Actions → Deploy Frontend/Backend → Run workflow
+
+### 部署目录结构
+```
+/opt/
+├── echome-fe/
+│   ├── current/          # 当前版本软链接
+│   └── releases/         # 历史版本
+└── echome-be/
+    ├── current/          # 当前版本软链接  
+    └── releases/         # 历史版本
+```
+
+## 开发工具
+
+### 代码质量
+```bash
+# 前端代码检查和格式化
+cd echome-fe
+pnpm lint
+pnpm format
+
+# 后端代码格式化
+cd echome-be  
+go fmt ./...
+go vet ./...
+```
+
+### API 文档
+后端集成了 Swagger 文档，启动后访问：
+- Swagger UI: http://localhost:8080/swagger/index.html
+- OpenAPI JSON: http://localhost:8080/swagger/doc.json
+
+### 数据库迁移
+```bash
+cd echome-be
+go run tools/migrate.go
+```
+
+## 贡献指南
 
 1. Fork 项目
 2. 创建特性分支: `git checkout -b feat/new-feature`
