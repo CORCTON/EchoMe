@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -v -a -installsuffix cgo \
     -ldflags="-s -w" \
-    -o ${APP_NAME} ./cmd/api
+    -o ${APP_NAME} ./cmd/main
 
 # 运行时阶段
 FROM scratch
