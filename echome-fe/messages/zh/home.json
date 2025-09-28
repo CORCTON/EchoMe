@@ -27,5 +27,9 @@
   "upload_failed": "上传失败，请重试。",
   "pdf_processing_error": "PDF处理失败",
   "file_type_support": "仅支持图像和PDF",
-  "pdf_library_loading": "正在初始化"
+  "pdf_library_loading": "正在初始化",
+  "search_characters": "搜索角色",
+  "no_characters_found": "未找到匹配的角色",
+  "no_characters": "暂无角色",
+  "tap_to_interrupt": "轻点以手动打断"
 }

@@ -27,5 +27,9 @@
   "upload_failed": "Upload failed, please try again.",
   "pdf_processing_error": "PDF processing failed",
   "file_type_support": "Only images and PDFs are supported",
-  "pdf_library_loading": "Initializing"
+  "pdf_library_loading": "Initializing",
+  "search_characters": "Search Characters",
+  "no_characters_found": "No matching characters found",
+  "no_characters": "No characters available",
+  "tap_to_interrupt": "Tap to manually interrupt"
 }
