@@ -44,8 +44,14 @@ export default function Page() {
   const [userHasScrolled, setUserHasScrolled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { isVadReady, voiceActivity, transcript, initVad, resetTranscript } =
-    useVadStore();
+  const {
+    isVadReady,
+    voiceActivity,
+    transcript,
+    initVad,
+    resetTranscript,
+    forceEndSpeech,
+  } = useVadStore();
   const {
     history,
     start,
@@ -180,6 +186,12 @@ export default function Page() {
   }, [isVadReady, isConversationStarted]);
 
   const t = useTranslations("home");
+
+  const handleInterrupt = () => {
+    if (voiceActivity === VoiceActivity.Speaking) {
+      forceEndSpeech();
+    }
+  };
 
   const animationActivity = useMemo(() => {
     if (isResponding) {
@@ -373,14 +385,27 @@ export default function Page() {
               </div>
             )}
 
-          <div
+          <button
+            type="button"
             className={cn(
-              "absolute bottom-10 left-1/2 -translate-x-1/2 w-40 h-40 transition-opacity duration-300 ease-in-out",
+              "absolute bottom-10 left-1/2 -translate-x-1/2 w-40 h-40 transition-opacity duration-300 ease-in-out cursor-pointer pointer-events-auto",
               { "opacity-0": !isVadReady },
             )}
+            onClick={handleInterrupt}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleInterrupt();
+              }
+            }}
           >
             <AudioAnimation activity={animationActivity} />
-          </div>
+            {voiceActivity === VoiceActivity.Speaking && (
+              <p className="text-xs text-center text-gray-500 mt-2">
+                {t("tap_to_interrupt")}
+              </p>
+            )}
+          </button>
         </div>
       </div>
     </div>
