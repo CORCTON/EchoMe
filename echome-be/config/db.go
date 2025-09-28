@@ -17,7 +17,7 @@ func GetDatabaseConfig(cfg *Config) *DatabaseConfig {
 	return &cfg.Database
 }
 
-const postgresTCPDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Shanghai"
+const postgresTCPDSN = "host=%s user=%s password=%s dbname=%s port=%d sslmode=disable"
 
 func (cfg *DatabaseConfig) GetDSN() string {
 	return fmt.Sprintf(
