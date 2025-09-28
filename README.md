@@ -30,15 +30,15 @@
     - [分层架构概览](#分层架构概览)
     - [核心数据流与通信模式](#核心数据流与通信模式)
     - [业务流程说明](#业务流程说明)
-  - [📁 项目结构](#项目结构)
-  - [⚙️ 配置说明](#配置说明)
-    - [前端环境变量](#前端环境变量)
-    - [后端配置文件](#后端配置文件)
-  - [🐳 Docker 部署](#docker-部署)
-  - [🔄 CI/CD 部署](#cicd-部署)
-  - [🧪 开发工具](#开发工具)
-  - [🤝 贡献指南](#贡献指南)
-  - [📜 许可证](#许可证)
+  - [📁 项目结构](#项目结构-1)
+  - [⚙️ 配置说明](#配置说明-1)
+    - [前端环境变量](#前端环境变量-1)
+    - [后端配置文件](#后端配置文件-1)
+  - [🐳 Docker 部署](#docker-部署-1)
+  - [🔄 CI/CD 部署](#cicd-部署-1)
+  - [🧪 开发工具](#开发工具-1)
+  - [🤝 贡献指南](#贡献指南-1)
+  - [📜 许可证](#许可证-1)
 
 ## 🚀 快速开始
 
@@ -425,7 +425,7 @@ flowchart TD
 4. **内容提取**: 自动识别文档结构、文字、图表等关键信息
 5. **知识整合**: 提取的内容融入对话上下文和角色知识体系
 
-## 📁 项目结构
+## 📁 项目结构 {#项目结构-1}
 
 ```
 EchoMe/
@@ -453,9 +453,9 @@ EchoMe/
 └── deploy/                       # 部署脚本和配置
 ```
 
-## ⚙️ 配置说明
+## ⚙️ 配置说明 {#配置说明-1}
 
-### 前端环境变量 (.env.local)
+### 前端环境变量 {#前端环境变量-1}
 ```bash
 # 阿里云 OSS 配置
 OSS_BUCKET=your-bucket-name
@@ -468,7 +468,7 @@ NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-nextauth-secret
 ```
 
-### 后端配置文件 (config/etc/config.yaml)
+### 后端配置文件 {#后端配置文件-1}
 ```yaml
 server:
   port: "8080"
@@ -496,7 +496,7 @@ database:
   ssl_mode: "disable"
 ```
 
-## 🐳 Docker 部署
+## 🐳 Docker 部署 {#docker-部署-1}
 
 ### 使用 Docker Compose
 ```bash
@@ -520,7 +520,7 @@ cd ../echome-be
 docker build -t echome-be .
 ```
 
-## 🔄 CI/CD 部署
+## 🔄 CI/CD 部署 {#cicd-部署-1}
 
 项目支持 GitHub Actions 自动化部署：
 
@@ -545,7 +545,7 @@ docker build -t echome-be .
     └── releases/         # 历史版本
 ```
 
-## 🧪 开发工具
+## 🧪 开发工具 {#开发工具-1}
 
 ### 代码质量
 ```bash
@@ -571,7 +571,7 @@ cd echome-be
 go run tools/migrate.go
 ```
 
-## 🤝 贡献指南
+## 🤝 贡献指南 {#贡献指南-1}
 
 1. Fork 项目
 2. 创建特性分支: `git checkout -b feat/new-feature`
@@ -579,20 +579,15 @@ go run tools/migrate.go
 4. 推送分支: `git push origin feat/new-feature`
 5. 创建 Pull Request
 
-## 📜 许可证
+## 📜 许可证 {#许可证-1}
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 
 ## 📝 操作日志
 
-### 2024-08-28 更新后端README.md的API端点描述
+### 2024-08-28 修复README.md目录链接
 
-1. 检查后端代码中的实际API端点定义
-2. 更新后端README.md文件，修正角色相关API端点：
-   - 保留 `GET /api/characters` 和 `GET /api/characters/{id}`
-   - 将 `POST /api/characters` 修正为 `POST /api/character`
-   - 删除不存在的 `PUT /api/characters/{id}` 和 `DELETE /api/characters/{id}`
-3. 删除不存在的消息相关API端点部分
-4. 修正WebSocket端点：
-   - 保留 `GET /ws/asr`
-   - 将 `GET /ws/voice-conversation/{characterId}` 修正为 `GET /ws/voice-conversation?characterId={characterId}`
+1. 修复主项目README.md文件中的目录锚点链接问题
+2. 为所有目录项添加唯一标识符，例如 `#项目结构` 改为 `#项目结构-1`
+3. 为所有对应标题添加自定义ID属性，使用 `{#唯一标识符}` 格式
+4. 确保目录点击可以正确跳转到对应章节
