@@ -84,7 +84,7 @@ func (s *ConversationService) handleVoiceConversationFlow(ctx context.Context, s
 					zap.L().Info("读取超时，客户端无响应，关闭连接")
 					return nil // 正常关闭
 				}
-				if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
+				if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
 					zap.L().Info("客户端关闭连接", zap.Error(err))
 					return nil // 正常关闭
 				}
