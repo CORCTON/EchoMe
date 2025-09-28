@@ -5,11 +5,8 @@ import (
 )
 
 // Provider sets for Wire
-var (
-	// HandlerProviderSet contains all handler providers
-	HandlerProviderSet = wire.NewSet(
+var HandlerProviderSet = wire.NewSet(
 		NewHandlers,
 		NewCharacterHandlers,
 		NewWebSocketHandlers,
 	)
-)

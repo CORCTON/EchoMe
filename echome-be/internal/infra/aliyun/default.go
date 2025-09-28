@@ -3,8 +3,10 @@ package aliyun
 import (
 	"github.com/justin/echome-be/internal/domain/ai"
 )
-
-const tavilyAPIURL = "https://api.tavily.com/search"
+const (
+	apiURL = "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/customization"
+	tavilyAPIURL = "https://api.tavily.com/search"
+)
 
 // DefaultTTSConfig 提供默认 TTS 配置
 func DefaultTTSConfig() ai.TTSConfig {

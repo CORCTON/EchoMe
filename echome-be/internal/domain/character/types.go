@@ -13,7 +13,7 @@ const (
 	CharacterStatusDisabled = 3 // 禁用
 )
 
-// Character represents a role in the system
+// Character 角色实体
 type Character struct {
 	ID uuid.UUID `json:"id"`
 	// 角色名
