@@ -41,7 +41,10 @@ export async function POST(request: NextRequest) {
     // 验证密码
     if (password !== process.env.AUTH_PASSWORD) {
       const newCount = (record?.count || 0) + 1;
-      loginAttempts.set(ip, { count: newCount, timestamp: record?.timestamp || now });
+      loginAttempts.set(ip, {
+        count: newCount,
+        timestamp: record?.timestamp || now,
+      });
       return NextResponse.json({ error: "密码错误" }, { status: 401 });
     }
 

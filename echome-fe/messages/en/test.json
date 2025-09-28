@@ -1,0 +1,9 @@
+{
+  "type_message": "Type your message...",
+  "send": "Send",
+  "interrupt": "Interrupt",
+  "connection_status": "Connection: {status}",
+  "connected": "Connected",
+  "connecting": "Connecting",
+  "disconnected": "Disconnected"
+}

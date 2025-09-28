@@ -78,15 +78,23 @@ export function AudioAnimation({ activity }: AudioAnimationProps) {
         className="relative cursor-pointer select-none bg-transparent border-none p-0 w-full h-full block"
         onClick={handleInterrupt}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+          if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             handleInterrupt();
           }
         }}
         disabled={activity !== VoiceActivity.Speaking}
-        title={activity === VoiceActivity.Speaking ? t("tap_to_interrupt") : undefined}
-        aria-label={activity === VoiceActivity.Speaking ? t("tap_to_interrupt") : undefined}
-        style={{ minWidth: '100%', minHeight: '100%' }}
+        title={
+          activity === VoiceActivity.Speaking
+            ? t("tap_to_interrupt")
+            : undefined
+        }
+        aria-label={
+          activity === VoiceActivity.Speaking
+            ? t("tap_to_interrupt")
+            : undefined
+        }
+        style={{ minWidth: "100%", minHeight: "100%" }}
       >
         <div className="w-full h-full">
           <RiveComponent />
